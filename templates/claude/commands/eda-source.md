@@ -1,7 +1,7 @@
 ---
 description: Interactive component sourcing session
 argument-hint: [component-role]
-allowed-tools: Read, Write, Glob, WebFetch, mcp__lcsc__component_search, mcp__lcsc__component_get, mcp__lcsc__library_fetch, mcp__lcsc__library_get_symbol, mcp__lcsc__library_get_footprint
+allowed-tools: Read, Write, Glob, WebFetch, mcp__lcsc__*
 ---
 
 # Component Sourcing: $ARGUMENTS
