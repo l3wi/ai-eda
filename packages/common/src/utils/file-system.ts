@@ -89,6 +89,14 @@ export async function writeText(path: string, content: string): Promise<void> {
 }
 
 /**
+ * Write binary data to a file
+ */
+export async function writeBinary(path: string, data: Buffer | Uint8Array): Promise<void> {
+  await ensureParentDir(path);
+  await writeFile(path, data);
+}
+
+/**
  * List files in a directory with optional filtering
  */
 export async function listFiles(

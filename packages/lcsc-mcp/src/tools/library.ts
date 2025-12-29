@@ -7,7 +7,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { easyedaClient } from '../api/easyeda.js';
 import { symbolConverter } from '../converter/symbol.js';
 import { footprintConverter } from '../converter/footprint.js';
-import { ensureDir, writeText } from '@ai-eda/common';
+import { ensureDir, writeText, writeBinary } from '@ai-eda/common';
 import { join } from 'path';
 
 export const getSymbolKicadTool: Tool = {
@@ -188,7 +188,7 @@ export async function handleFetchLibrary(args: unknown) {
     const model = await easyedaClient.get3DModel(component.model3d.uuid, 'step');
     if (model) {
       modelPath = join(modelsDir, `${params.lcsc_id}.step`);
-      await Bun.write(modelPath, model);
+      await writeBinary(modelPath, model);
     }
   }
 
