@@ -9,12 +9,14 @@
       }
     },
     "kicad": {
-      "command": "npx",
-      "args": ["-y", "@ai-eda/kicad-mcp@latest"],
+      "command": "node",
+      "args": ["{{HOME}}/.ai-eda/kicad-mcp/dist/index.js"],
       "env": {
-        "KICAD_USER_LIBRARY": "./libraries",
         "KICAD_PROJECT_DIR": "./hardware"
       }
     }
+  },
+  "_comments": {
+    "kicad": "Auto-installed by 'ai-eda init' or 'ai-eda doctor --fix'. Uses https://github.com/mixelpixx/KiCAD-MCP-Server with kicad-skip for schematic manipulation."
   }
 }

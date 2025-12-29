@@ -6,6 +6,13 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir, platform } from 'os';
 import chalk from 'chalk';
+import {
+  isKicadMcpInstalled,
+  checkPythonDependencies,
+  installKicadMcp,
+  configureGlobalMcp,
+  getKicadMcpPaths,
+} from './kicad-mcp.js';
 
 interface CheckResult {
   name: string;
@@ -51,7 +58,12 @@ export function checkKicadIpcEnabled(version: string = '9.0'): { enabled: boolea
   }
 }
 
-export async function doctorCommand(): Promise<void> {
+export interface DoctorOptions {
+  fix?: boolean;
+  verbose?: boolean;
+}
+
+export async function doctorCommand(options: DoctorOptions = {}): Promise<void> {
   console.log(chalk.bold('\nChecking AI-EDA environment...\n'));
 
   const results: CheckResult[] = [];
@@ -61,6 +73,13 @@ export async function doctorCommand(): Promise<void> {
 
   // Check KiCad IPC API
   results.push(checkKicadIpc());
+
+  // Check KiCad MCP Server
+  const mcpResult = await checkKicadMcp();
+  results.push(mcpResult);
+
+  // Check Python dependencies for KiCad MCP
+  results.push(await checkKicadMcpPython());
 
   // Check Bun
   results.push(await checkBun());
@@ -92,7 +111,6 @@ export async function doctorCommand(): Promise<void> {
 
   const failures = results.filter((r) => r.status === 'fail');
   const warnings = results.filter((r) => r.status === 'warn');
-  const passes = results.filter((r) => r.status === 'pass');
 
   console.log('');
   if (failures.length > 0) {
@@ -105,6 +123,76 @@ export async function doctorCommand(): Promise<void> {
     console.log(chalk.green.bold('All checks passed!'));
   }
   console.log('');
+
+  // Handle --fix option
+  if (options.fix) {
+    const needsMcpInstall = mcpResult.status !== 'pass';
+
+    if (needsMcpInstall) {
+      console.log(chalk.bold('Attempting to fix issues...\n'));
+
+      console.log(chalk.cyan('Installing KiCad MCP Server...'));
+      const success = await installKicadMcp({ verbose: options.verbose });
+
+      if (success) {
+        console.log(chalk.cyan('Configuring global Claude config...'));
+        if (configureGlobalMcp()) {
+          console.log(chalk.green('✓ Global Claude MCP config updated'));
+        }
+      }
+    } else {
+      console.log(chalk.dim('No automatic fixes needed.'));
+    }
+    console.log('');
+  } else if (mcpResult.status !== 'pass') {
+    console.log(chalk.dim('Run with --fix to automatically install missing components:'));
+    console.log(chalk.cyan('  ai-eda doctor --fix'));
+    console.log('');
+  }
+}
+
+async function checkKicadMcp(): Promise<CheckResult> {
+  const { installed, built, paths } = isKicadMcpInstalled();
+
+  if (built) {
+    return {
+      name: 'KiCad MCP Server',
+      status: 'pass',
+      message: `Installed at ${paths.mcpDir}`,
+    };
+  }
+
+  if (installed) {
+    return {
+      name: 'KiCad MCP Server',
+      status: 'warn',
+      message: 'Installed but not built. Run "ai-eda doctor --fix" to rebuild.',
+    };
+  }
+
+  return {
+    name: 'KiCad MCP Server',
+    status: 'warn',
+    message: 'Not installed. Run "ai-eda doctor --fix" to install.',
+  };
+}
+
+async function checkKicadMcpPython(): Promise<CheckResult> {
+  const { installed, missing } = await checkPythonDependencies();
+
+  if (installed) {
+    return {
+      name: 'KiCad MCP Python Deps',
+      status: 'pass',
+      message: 'kicad-skip, Pillow, cairosvg, pydantic installed',
+    };
+  }
+
+  return {
+    name: 'KiCad MCP Python Deps',
+    status: 'warn',
+    message: `Missing: ${missing.join(', ')}. Run "ai-eda doctor --fix" to install.`,
+  };
 }
 
 function checkKicadIpc(): CheckResult {

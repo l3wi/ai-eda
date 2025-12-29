@@ -6,7 +6,7 @@
  */
 
 import { Command } from 'commander';
-import { initCommand, doctorCommand, updateCommand, configCommand, kicadIpcCommand } from './commands/index.js';
+import { initCommand, doctorCommand, updateCommand, configCommand, kicadIpcCommand, kicadMcpCommand } from './commands/index.js';
 
 const program = new Command();
 
@@ -33,8 +33,13 @@ program
 program
   .command('doctor')
   .description('Check environment setup')
-  .action(async () => {
-    await doctorCommand();
+  .option('-f, --fix', 'Automatically fix issues (install missing components)')
+  .option('-v, --verbose', 'Show verbose output during fixes')
+  .action(async (options) => {
+    await doctorCommand({
+      fix: options.fix,
+      verbose: options.verbose,
+    });
   });
 
 program
@@ -80,6 +85,22 @@ program
       disable: options.disable,
       status: options.status,
       version: options.version,
+    });
+  });
+
+program
+  .command('kicad-mcp')
+  .description('Manage KiCad MCP Server for Claude Code integration')
+  .option('-i, --install', 'Install or update KiCad MCP Server')
+  .option('-u, --update', 'Update existing installation')
+  .option('-s, --status', 'Show installation status')
+  .option('-g, --configure-global', 'Configure global Claude MCP config')
+  .action(async (options) => {
+    await kicadMcpCommand({
+      install: options.install,
+      update: options.update,
+      status: options.status,
+      configureGlobal: options.configureGlobal,
     });
   });
 
