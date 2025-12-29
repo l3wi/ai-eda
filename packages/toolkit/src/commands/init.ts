@@ -48,10 +48,9 @@ const DIRECTORIES = [
   '.claude/skills',
   'docs',
   'datasheets',
-  'hardware',
   'libraries/symbols',
-  'libraries/footprints',
-  'libraries/3dmodels',
+  'libraries/footprints/LCSC.pretty',
+  'libraries/3dmodels/LCSC.3dshapes',
   'production',
 ];
 
@@ -442,10 +441,15 @@ AI-assisted EDA project using @ai-eda toolkit.
 
 ## Project Structure
 
-- \`hardware/\`: KiCad project files
+- \`${projectName}.kicad_pro\`: KiCad project file (in root)
+- \`${projectName}.kicad_sch\`: Schematic
+- \`${projectName}.kicad_pcb\`: PCB layout
 - \`docs/\`: Design documentation
 - \`datasheets/\`: Component datasheets
 - \`libraries/\`: Project component libraries
+  - \`symbols/LCSC.kicad_sym\`: Unified symbol library
+  - \`footprints/LCSC.pretty/\`: Footprint library
+  - \`3dmodels/LCSC.3dshapes/\`: 3D models
 - \`production/\`: Manufacturing outputs
 
 ## EDA Workflow

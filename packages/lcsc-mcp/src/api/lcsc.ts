@@ -70,15 +70,27 @@ export class LCSCClient {
     query: string,
     options: LCSCSearchOptions = {}
   ): Promise<ComponentSearchResult[]> {
-    const { limit = 10, page = 1 } = options;
+    const { limit = 10, page = 1, inStock = false, basicOnly = false } = options;
 
-    logger.debug(`Searching LCSC (via JLCPCB) for: ${query}`);
+    logger.debug(`Searching LCSC (via JLCPCB) for: ${query} (inStock=${inStock}, basicOnly=${basicOnly})`);
 
-    const body = JSON.stringify({
+    const requestBody: Record<string, unknown> = {
       currentPage: page,
       pageSize: Math.min(limit, 50),
       keyword: query,
-    });
+    };
+
+    // Add in-stock filter
+    if (inStock) {
+      requestBody.presaleType = 'stock';
+    }
+
+    // Add basic library filter (JLCPCB basic parts = lower assembly cost)
+    if (basicOnly) {
+      requestBody.componentLibTypes = ['base'];
+    }
+
+    const body = JSON.stringify(requestBody);
 
     try {
       const response = await fetch(JLCPCB_SEARCH_API, {

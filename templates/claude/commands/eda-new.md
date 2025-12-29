@@ -83,8 +83,10 @@ After gathering requirements, create:
 Also create the project directory structure if it doesn't exist:
 
 ```
-mkdir -p docs datasheets hardware libraries production
+mkdir -p docs datasheets libraries/symbols libraries/footprints/LCSC.pretty libraries/3dmodels/LCSC.3dshapes production
 ```
+
+Note: KiCad project files (.kicad_pro, .kicad_sch, .kicad_pcb) are stored in the project root, not in a subdirectory.
 
 ## Next Steps
 

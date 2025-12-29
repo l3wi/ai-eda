@@ -6,13 +6,17 @@
 
 ## Project Structure
 
-- `hardware/`: KiCad project files (.kicad_pro, .kicad_sch, .kicad_pcb)
+- `{{PROJECT_NAME}}.kicad_pro`: KiCad project file (in root)
+- `{{PROJECT_NAME}}.kicad_sch`: Schematic
+- `{{PROJECT_NAME}}.kicad_pcb`: PCB layout
+- `sym-lib-table`: Symbol library table (auto-managed)
+- `fp-lib-table`: Footprint library table (auto-managed)
 - `docs/`: Design documentation and specifications
 - `datasheets/`: Component datasheets (PDF)
 - `libraries/`: Project-specific KiCad libraries
-  - `symbols/`: Schematic symbols (.kicad_sym)
-  - `footprints/`: PCB footprints (.kicad_mod)
-  - `3dmodels/`: 3D models for visualization
+  - `symbols/LCSC.kicad_sym`: Unified LCSC symbol library
+  - `footprints/LCSC.pretty/`: Footprint library
+  - `3dmodels/LCSC.3dshapes/`: 3D models for visualization
 - `production/`: Manufacturing output files (Gerbers, BOM, etc.)
 
 ## Design Constraints

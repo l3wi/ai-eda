@@ -1,14 +1,26 @@
 /**
  * Library fetching and conversion tools for MCP
+ * Manages a unified LCSC library that accumulates components
  */
 
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { easyedaClient } from '../api/easyeda.js';
 import { symbolConverter } from '../converter/symbol.js';
 import { footprintConverter } from '../converter/footprint.js';
+import {
+  ensureSymLibTable,
+  ensureFpLibTable,
+  getSymbolReference,
+  getFootprintReference,
+} from '../converter/lib-table.js';
 import { ensureDir, writeText, writeBinary } from '@ai-eda/common';
-import { join } from 'path';
+import { join, dirname } from 'path';
+
+const SYMBOL_LIBRARY_NAME = 'LCSC.kicad_sym';
+const FOOTPRINT_LIBRARY_NAME = 'LCSC.pretty';
 
 export const getSymbolKicadTool: Tool = {
   name: 'library_get_symbol',
@@ -42,24 +54,27 @@ export const getFootprintKicadTool: Tool = {
 
 export const fetchLibraryTool: Tool = {
   name: 'library_fetch',
-  description: 'Fetch and convert EasyEDA symbol+footprint to KiCad format. Saves files to the specified output directory.',
+  description: `Fetch an LCSC component and add it to the project's unified LCSC library.
+Creates LCSC.kicad_sym (symbols) and LCSC.pretty/ (footprints) in the libraries folder.
+Automatically updates sym-lib-table and fp-lib-table.
+Returns symbol_ref and footprint_ref for immediate use with add_schematic_component.`,
   inputSchema: {
     type: 'object',
     properties: {
       lcsc_id: {
         type: 'string',
-        description: 'LCSC part number',
+        description: 'LCSC part number (e.g., C2040, C17414)',
       },
-      output_dir: {
+      project_path: {
         type: 'string',
-        description: 'Output directory for library files (default: ./libraries)',
+        description: 'Path to the KiCad project directory (contains .kicad_pro file). Libraries will be created in <project_path>/libraries/',
       },
       include_3d: {
         type: 'boolean',
-        description: 'Include 3D model if available',
+        description: 'Include 3D model if available (default: false)',
       },
     },
-    required: ['lcsc_id'],
+    required: ['lcsc_id', 'project_path'],
   },
 };
 
@@ -89,7 +104,7 @@ export const LibraryParamsSchema = z.object({
 
 export const FetchLibraryParamsSchema = z.object({
   lcsc_id: z.string().regex(/^C\d+$/, 'Invalid LCSC part number'),
-  output_dir: z.string().optional(),
+  project_path: z.string().min(1, 'Project path is required'),
   include_3d: z.boolean().optional(),
 });
 
@@ -148,8 +163,9 @@ export async function handleGetFootprintKicad(args: unknown) {
 
 export async function handleFetchLibrary(args: unknown) {
   const params = FetchLibraryParamsSchema.parse(args);
-  const outputDir = params.output_dir || './libraries';
+  const projectPath = params.project_path;
 
+  // Fetch component data from EasyEDA
   const component = await easyedaClient.getComponentData(params.lcsc_id);
 
   if (!component) {
@@ -162,23 +178,50 @@ export async function handleFetchLibrary(args: unknown) {
     };
   }
 
-  // Create output directories
-  const symbolsDir = join(outputDir, 'symbols');
-  const footprintsDir = join(outputDir, 'footprints', 'LCSC.pretty');
-  const modelsDir = join(outputDir, '3dmodels', 'LCSC.3dshapes');
+  // Setup library paths
+  const librariesDir = join(projectPath, 'libraries');
+  const symbolsDir = join(librariesDir, 'symbols');
+  const footprintsDir = join(librariesDir, 'footprints', FOOTPRINT_LIBRARY_NAME);
+  const modelsDir = join(librariesDir, '3dmodels', 'LCSC.3dshapes');
 
   await ensureDir(symbolsDir);
   await ensureDir(footprintsDir);
 
-  // Generate and save symbol
-  const symbol = symbolConverter.convert(component);
-  const symbolPath = join(symbolsDir, `${params.lcsc_id}.kicad_sym`);
-  await writeText(symbolPath, symbol);
+  // Handle unified symbol library
+  const symbolLibPath = join(symbolsDir, SYMBOL_LIBRARY_NAME);
+  const symbolName = symbolConverter.getSymbolName(component);
 
-  // Generate and save footprint
+  let symbolContent: string;
+  let symbolAction: 'created' | 'appended' | 'exists';
+
+  if (existsSync(symbolLibPath)) {
+    // Read existing library
+    const existingContent = await readFile(symbolLibPath, 'utf-8');
+
+    // Check if symbol already exists
+    if (symbolConverter.symbolExistsInLibrary(existingContent, component.info.name)) {
+      symbolAction = 'exists';
+      symbolContent = existingContent;
+    } else {
+      // Append new symbol
+      symbolContent = symbolConverter.appendToLibrary(existingContent, component);
+      symbolAction = 'appended';
+    }
+  } else {
+    // Create new library with this symbol
+    symbolContent = symbolConverter.convert(component);
+    symbolAction = 'created';
+  }
+
+  // Write symbol library if changed
+  if (symbolAction !== 'exists') {
+    await writeText(symbolLibPath, symbolContent);
+  }
+
+  // Generate and save footprint (individual files in .pretty directory)
   const footprint = footprintConverter.convert(component);
-  const footprintName = component.footprint.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const footprintPath = join(footprintsDir, `${footprintName}_${params.lcsc_id}.kicad_mod`);
+  const footprintName = component.footprint.name.replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + params.lcsc_id;
+  const footprintPath = join(footprintsDir, `${footprintName}.kicad_mod`);
   await writeText(footprintPath, footprint);
 
   // Download 3D model if requested
@@ -192,18 +235,34 @@ export async function handleFetchLibrary(args: unknown) {
     }
   }
 
+  // Update sym-lib-table and fp-lib-table
+  const symTableResult = await ensureSymLibTable(projectPath, symbolLibPath);
+  const fpTableResult = await ensureFpLibTable(projectPath, join(librariesDir, 'footprints', FOOTPRINT_LIBRARY_NAME));
+
+  // Generate references for immediate use
+  const symbolRef = getSymbolReference(symbolName);
+  const footprintRef = getFootprintReference(footprintName);
+
   return {
     content: [{
       type: 'text' as const,
       text: JSON.stringify({
         success: true,
         lcsc_id: params.lcsc_id,
-        datasheet: `https://www.lcsc.com/datasheet/${params.lcsc_id}.pdf`,
+        symbol_name: symbolName,
+        symbol_ref: symbolRef,
+        footprint_ref: footprintRef,
+        datasheet: component.info.datasheet || `https://www.lcsc.com/datasheet/lcsc_datasheet_${params.lcsc_id}.pdf`,
         files: {
-          symbol: symbolPath,
+          symbol_library: symbolLibPath,
           footprint: footprintPath,
           model_3d: modelPath,
         },
+        library_tables: {
+          sym_lib_table: symTableResult,
+          fp_lib_table: fpTableResult,
+        },
+        symbol_action: symbolAction,
       }, null, 2),
     }],
   };

@@ -37,16 +37,25 @@ For the role **$ARGUMENTS**, ask:
 **ALWAYS use LCSC MCP tools first.**
 
 Available MCP tools:
-- `/mcp__lcsc__component_search` - Search with `query` parameter
+- `/mcp__lcsc__component_search` - Search with `query`, `basic_only`, `in_stock`, `limit` parameters
 - `/mcp__lcsc__component_get` - Get details with `lcsc_id` parameter
 - `/mcp__lcsc__library_fetch` - Fetch KiCad symbol/footprint
 
 **Do NOT use Bash. Do NOT use WebSearch for components.**
 
-Focus on:
-- In-stock components (check `stock` field)
-- Note pricing at quantity (`price` field)
-- JLCPCB Basic parts (when suitable)
+**Search Strategy (in order):**
+
+1. **First: Basic + In-Stock** - Try with `basic_only: true, in_stock: true`
+   - JLCPCB Basic parts have no setup fee ($3 savings per unique part)
+   - In-stock ensures availability
+
+2. **Fallback: Extended + In-Stock** - If no good results, try `basic_only: false, in_stock: true`
+   - Extended parts have setup fee but wider selection
+
+3. **Last Resort: All parts** - Only if needed, try `in_stock: false`
+   - Check lead times for out-of-stock items
+
+Always default to `in_stock: true` unless specifically looking for unavailable parts.
 
 ### 3. Download and Analyze Datasheets
 

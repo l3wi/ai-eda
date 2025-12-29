@@ -8,7 +8,7 @@ import { lcscClient } from '../api/lcsc.js';
 
 export const searchComponentsTool: Tool = {
   name: 'component_search',
-  description: 'Search the LCSC component database by keyword. Returns a list of matching components with their LCSC IDs, prices, and stock levels.',
+  description: 'Search the LCSC/JLCPCB component database by keyword. Returns a list of matching components with their LCSC IDs, prices, and stock levels.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -22,7 +22,11 @@ export const searchComponentsTool: Tool = {
       },
       in_stock: {
         type: 'boolean',
-        description: 'Only show in-stock items',
+        description: 'Only show in-stock items (default: false)',
+      },
+      basic_only: {
+        type: 'boolean',
+        description: 'Only show JLCPCB Basic Parts Library components (lower assembly cost, default: false)',
       },
     },
     required: ['query'],
@@ -33,6 +37,7 @@ export const SearchParamsSchema = z.object({
   query: z.string().min(1),
   limit: z.number().min(1).max(50).default(10),
   in_stock: z.boolean().optional(),
+  basic_only: z.boolean().optional(),
 });
 
 export async function handleSearchComponents(args: unknown) {
@@ -41,6 +46,7 @@ export async function handleSearchComponents(args: unknown) {
   const results = await lcscClient.search(params.query, {
     limit: params.limit,
     inStock: params.in_stock,
+    basicOnly: params.basic_only,
   });
 
   return {

@@ -50,18 +50,18 @@ export const KICAD_LAYER_GROUPS = {
 
 // Default text sizes
 export const KICAD_DEFAULTS = {
-  TEXT_SIZE: 1.0,      // mm
+  TEXT_SIZE: 1.27,      // mm (standard KiCad 9)
   TEXT_THICKNESS: 0.15, // mm
   WIRE_WIDTH: 0.25,    // mm (schematic)
   GRID_SCHEMATIC: 2.54, // mm (100 mil)
   GRID_PCB: 0.25,      // mm
-  PIN_LENGTH: 2.54,    // mm (100 mil)
-  PIN_NAME_OFFSET: 1.016, // mm (40 mil)
+  PIN_LENGTH: 1.27,    // mm (50 mil - KiCad 9 default)
+  PIN_NAME_OFFSET: 0,  // mm (0 for hidden names)
 } as const;
 
-// Symbol generator version
-export const KICAD_SYMBOL_VERSION = '20231120';
-export const KICAD_FOOTPRINT_VERSION = '20231120';
+// Symbol generator version (KiCad 9 format)
+export const KICAD_SYMBOL_VERSION = '20241209';
+export const KICAD_FOOTPRINT_VERSION = '20241209';
 
 // Pin electrical types
 export const KICAD_PIN_TYPES = [

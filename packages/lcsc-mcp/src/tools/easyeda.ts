@@ -172,7 +172,7 @@ export async function handleEasyedaSearch(args: unknown) {
 
   for (let i = 0; i < results.length; i++) {
     const r = results[i]
-    output += `| ${i + 1} | ${r.title} | ${r.package} | ${r.owner.nickname || r.owner.username} | ${r.uuid.slice(0, 12)}... |\n`
+    output += `| ${i + 1} | ${r.title} | ${r.package} | ${r.owner.nickname || r.owner.username} | ${r.uuid} |\n`
   }
 
   output += '\nUse `easyeda_get` with the UUID to see component details.\n'

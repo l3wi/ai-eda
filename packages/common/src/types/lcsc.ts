@@ -64,6 +64,7 @@ export interface LCSCComponentResponse {
 export interface LCSCSearchOptions {
   category?: string;
   inStock?: boolean;
+  basicOnly?: boolean;
   limit?: number;
   page?: number;
 }
