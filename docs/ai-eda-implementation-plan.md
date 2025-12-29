@@ -284,7 +284,11 @@ export interface EasyEDAFootprint {
 
 ---
 
+<!--
 ## Phase 3: @ai-eda/kicad-mcp Package
+
+NOTE: COMMENTED OUT - Using vanilla KiCad MCP server (mixelpixx/KiCAD-MCP-Server) instead.
+      This phase can be revisited later if custom KiCad MCP functionality is needed.
 
 ### 3.1 Purpose
 MCP server for KiCad automation. Fork and extend https://github.com/mixelpixx/KiCAD-MCP-Server
@@ -350,7 +354,7 @@ export const additionalTools = {
   "library:add_symbol": "Add symbol to project library",
   "library:add_footprint": "Add footprint to project library",
   "library:import_easyeda": "Import EasyEDA component (calls lcsc-mcp)",
-  
+
   // Schematic Tools
   "schematic:create_sheet": "Create new schematic sheet",
   "schematic:add_net_label": "Add net label at position",
@@ -360,8 +364,8 @@ export const additionalTools = {
   "schematic:get_unconnected": "List unconnected pins",
   "schematic:annotate": "Auto-annotate component references",
   "schematic:organize_page": "Reorganize components on page",
-  
-  // PCB Tools  
+
+  // PCB Tools
   "pcb:set_stackup": "Define layer stackup",
   "pcb:add_mounting_hole": "Add mounting hole",
   "pcb:set_design_rules": "Set DRC rules",
@@ -369,12 +373,12 @@ export const additionalTools = {
   "pcb:auto_place": "Auto-place components (basic)",
   "pcb:get_ratsnest": "Get unrouted connections",
   "pcb:check_placement": "Validate component placement",
-  
+
   // Analysis Tools
   "analysis:screenshot": "Capture board/schematic image",
   "analysis:get_statistics": "Get board statistics (trace length, via count, etc)",
   "analysis:check_clearances": "Check specific clearance violations",
-  
+
   // Export Tools
   "export:gerber_zip": "Export Gerbers as ZIP for manufacturing",
   "export:pick_place": "Export pick and place file",
@@ -408,6 +412,8 @@ export const additionalTools = {
   }
 }
 ```
+
+END OF COMMENTED SECTION -->
 
 ---
 
@@ -2245,24 +2251,27 @@ See [MANUFACTURING.md](reference/MANUFACTURING.md) for export details.
 {
   "mcpServers": {
     "kicad": {
-      "command": "npx",
-      "args": ["-y", "@ai-eda/kicad-mcp@latest"],
+      "command": "node",
+      "args": ["{{KICAD_MCP_PATH}}/dist/index.js"],
       "env": {
-        "KICAD_USER_LIBRARY": "${PROJECT_DIR}/libraries",
-        "KICAD_PROJECT_DIR": "${PROJECT_DIR}/hardware"
+        "KICAD_USER_LIBRARY": "{{PROJECT_DIR}}/libraries",
+        "KICAD_PROJECT_DIR": "{{PROJECT_DIR}}/hardware"
       }
     },
     "lcsc": {
-      "command": "npx",
-      "args": ["-y", "@ai-eda/lcsc-mcp@latest"],
+      "command": "bunx",
+      "args": ["@ai-eda/lcsc-mcp@latest"],
       "env": {
-        "LCSC_CACHE_DIR": "${PROJECT_DIR}/.cache/lcsc",
-        "EASYEDA_OUTPUT_DIR": "${PROJECT_DIR}/libraries"
+        "LCSC_CACHE_DIR": "{{PROJECT_DIR}}/.cache/lcsc",
+        "EASYEDA_OUTPUT_DIR": "{{PROJECT_DIR}}/libraries"
       }
     }
   }
 }
 ```
+
+> **Note:** `{{KICAD_MCP_PATH}}` should be replaced with the local path to the
+> vanilla KiCad MCP server (e.g., mixelpixx/KiCAD-MCP-Server clone).
 
 ### 9.2 CLAUDE.md Template
 
@@ -2363,35 +2372,39 @@ This project uses @ai-eda toolkit. Available commands:
 
 ## Phase 10: Implementation Order
 
-### Week 1: Foundation
+### Week 1: Foundation ✅ COMPLETE
 1. Initialize monorepo with Bun workspaces
 2. Implement @ai-eda/common package (types, utilities)
 3. Set up build tooling and CI
 
-### Week 2: LCSC MCP
+### Week 2: LCSC MCP ✅ COMPLETE
 4. Fork/reference easyeda2kicad.py for conversion logic
-5. Implement LCSC API client
-6. Implement EasyEDA API client
+5. Implement LCSC API client (with curl fallback)
+6. Implement EasyEDA API client (with curl fallback)
 7. Build component converter (symbol + footprint)
 8. Create MCP server with all tools
+9. Test with HLK-7621 (140 pins/pads) - PASSED
 
-### Week 3: KiCad MCP
-9. Fork mixelpixx/KiCAD-MCP-Server
-10. Extend with additional tools
-11. Add schematic manipulation tools
-12. Add screenshot/analysis tools
-13. Test with real KiCad projects
+### Week 3: KiCad MCP - SKIPPED
+~~9. Fork mixelpixx/KiCAD-MCP-Server~~
+~~10. Extend with additional tools~~
+~~11. Add schematic manipulation tools~~
+~~12. Add screenshot/analysis tools~~
+~~13. Test with real KiCad projects~~
 
-### Week 4: Toolkit CLI
-14. Build CLI scaffold
-15. Implement `init` command with templates
-16. Implement `update` and `doctor` commands
-17. Create all template files (commands, agents, skills)
+**NOTE:** Using vanilla KiCad MCP server (mixelpixx/KiCAD-MCP-Server) instead.
+Configure in .mcp.json to use the existing server.
 
-### Week 5: Testing & Polish
-18. End-to-end testing with sample project
-19. Documentation
-20. Publish packages to npm
+### Week 3: Toolkit CLI (was Week 4)
+10. Build CLI scaffold
+11. Implement `init` command with templates
+12. Implement `update` and `doctor` commands
+13. Create all template files (commands, agents, skills)
+
+### Week 4: Testing & Polish (was Week 5)
+14. End-to-end testing with sample project
+15. Documentation
+16. Publish packages to npm
 
 ---
 
