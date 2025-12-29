@@ -2,6 +2,15 @@
 
 Standard subcircuits for common design patterns.
 
+## How to Use This Document
+
+1. **Find the pattern** that matches your design need
+2. **Check component values** against your datasheet (values here are starting points)
+3. **Cross-reference** with `eda-research/reference/DECOUPLING-STRATEGY.md` for cap values
+4. **Adapt** to your specific voltage rails and current requirements
+
+**Key principle:** Always verify component values against your specific IC datasheet.
+
 ## Power Circuits
 
 ### USB Power Input with Protection
@@ -23,6 +32,10 @@ Components:
 
 ### LDO Regulator (3.3V)
 
+**When to use:** Simple power, low current (<500mA), noise-sensitive circuits.
+**When to avoid:** High current, large Vin-Vout difference (heat), battery-powered (efficiency).
+**From design-constraints.json:** Check if `power.topology` is `ldo`.
+
 ```
 VIN ──┬────┬────────────┬── VOUT (3.3V)
       │   ┌┴┐           │
@@ -43,6 +56,11 @@ Notes:
 ```
 
 ### Buck Converter (5V to 3.3V)
+
+**When to use:** Higher current (>200mA), efficiency matters, battery-powered.
+**When to avoid:** Noise-sensitive RF/analog (use buck + LDO post-reg).
+**From design-constraints.json:** Check if `power.topology` is `buck` or `hybrid`.
+**Layout note:** Requires 4-layer PCB for good ground plane under switching node.
 
 ```
 VIN ──┬────┬─────────────────────────┬── VOUT
@@ -70,6 +88,10 @@ Notes:
 ## MCU Support Circuits
 
 ### Crystal Oscillator
+
+**Critical:** Load capacitor values must be calculated, not guessed.
+**Layout note:** Keep traces short (<5mm), add ground guard ring in layout.
+**From datasheet:** Find `CL` (load capacitance) specification for crystal.
 
 ```
         MCU
@@ -141,6 +163,10 @@ BOOT1  BOOT0  Mode
 
 ### USB-C with ESD Protection
 
+**Required:** CC resistors (5.1K) for device/UFP mode.
+**Required:** ESD protection for USB certification and reliability.
+**From design-constraints.json:** Check interfaces for USB requirements.
+
 ```
                     ┌─────────────┐
 VBUS ───────────────┤ VBUS        │
@@ -167,6 +193,10 @@ Components:
 ```
 
 ### I2C Pull-ups
+
+**Required:** I2C is open-drain, pull-ups are mandatory.
+**Value selection:** Based on bus speed (see table below).
+**Voltage:** Pull to highest Vio device on bus (typically 3.3V).
 
 ```
 VCC

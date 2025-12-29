@@ -2,10 +2,17 @@
 
 Standard role names and typical requirements for each category.
 
+**Selection Guides:**
+- Power components: See `REGULATOR-SELECTION.md`
+- Passives: See `PASSIVE-SELECTION.md` and `DECOUPLING-STRATEGY.md`
+- Alternatives: See `COMPONENT-ALTERNATIVES.md`
+
 ## Power Components
 
 ### `regulator-Xv` (e.g., regulator-3v3, regulator-5v)
 Linear or switching regulator for voltage rail.
+
+**See `REGULATOR-SELECTION.md` for detailed selection criteria.**
 
 **Typical options:**
 | Type | Example | Use case |
@@ -16,6 +23,12 @@ Linear or switching regulator for voltage rail.
 | Buck-Boost | TPS63000 | Battery applications |
 
 **Key specs:** Input range, output current, dropout, efficiency
+
+**Selection criteria:**
+- Check architecture decision (LDO vs buck from design-constraints.json)
+- Calculate power dissipation, verify thermal budget
+- Consider noise requirements for analog rails
+- Verify dropout voltage for low input scenarios
 
 ### `power-input`
 Input power handling and protection.
@@ -61,6 +74,22 @@ External crystal or oscillator for MCU.
 - Oscillator - Complete clock source, more accurate
 
 **Key specs:** Frequency, load capacitance, ppm accuracy
+
+**Load capacitor calculation (for crystals):**
+```
+CL = (C1 × C2) / (C1 + C2) + Cstray
+
+For symmetric (C1 = C2 = C):
+C = 2 × (CL - Cstray)
+
+Where:
+- CL = Crystal load capacitance (from crystal datasheet)
+- Cstray = PCB + IC parasitic (~3-5pF)
+```
+
+**Example:** Crystal with CL=12pF, Cstray=4pF → C = 2×(12-4) = 16pF → Use 15pF C0G caps
+
+**Important:** Use C0G/NP0 capacitors for crystal load caps (see `PASSIVE-SELECTION.md`).
 
 ---
 
@@ -109,12 +138,26 @@ USB ESD protection.
 
 **Typical:** USBLC6-2SC6, TPD2E001
 
-**Specs:** Low capacitance, TVS clamping
+**Key specs:** Low capacitance, TVS clamping voltage
+
+**Selection criteria:**
+| Spec | USB 2.0 Requirement |
+|------|---------------------|
+| Line capacitance | < 3pF per line |
+| Clamping voltage | < 12V |
+| ESD rating | ±15kV HBM minimum |
+
+**Trade-off:** Lower capacitance = less protection, higher capacitance = signal integrity issues
 
 ### `esd-io`
 General I/O ESD protection.
 
 **Typical:** TPD4E001, PESD5V0S1BL
+
+**Selection criteria:**
+- Match clamping voltage to signal voltage (Vclamp > Vmax signal)
+- Consider line capacitance for high-speed signals
+- Multi-channel devices reduce BOM count
 
 ### `fuse`
 Overcurrent protection.

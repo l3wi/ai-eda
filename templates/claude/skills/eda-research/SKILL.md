@@ -50,6 +50,16 @@ For the target component role, identify:
 - Package preferences (SMD size, through-hole)
 - Any specific brands or series to consider/avoid
 
+### 2.5 Check Architecture Constraints
+Before searching, review `design-constraints.json` for:
+- **Power topology:** LDO vs buck decision already made in architect phase
+- **Thermal budget:** Max watts for this role (check `thermal.hotComponents`)
+- **DFM targets:** Assembly method affects package choice
+- **Board layers:** May affect component density
+
+For power components, see `reference/REGULATOR-SELECTION.md` for selection criteria.
+For passives, see `reference/PASSIVE-SELECTION.md` and `reference/DECOUPLING-STRATEGY.md`.
+
 ### 3. Research Options
 Use web search to understand:
 - Common solutions for this application
@@ -71,6 +81,28 @@ For top 3-5 options:
 - Check application circuits
 - Note layout requirements
 - Identify any gotchas
+
+### 5.5 Validate Against Constraints
+Before presenting options, verify each candidate:
+
+**Thermal validation:**
+```
+P_dissipation = (calculated from datasheet)
+Thermal budget = (from design-constraints.json)
+✓ P_dissipation < Thermal budget
+```
+
+**Assembly compatibility:**
+- Hand assembly → 0603/0805 minimum, no fine-pitch
+- Reflow → 0402+ OK
+- Turnkey → Check JLCPCB availability
+
+**Architecture compliance:**
+- Meets LDO/buck decision from architect phase
+- Noise specs OK for rail type (analog vs digital)
+- Efficiency acceptable for battery applications
+
+Flag any candidates that fail validation with specific concerns.
 
 ### 6. Present Comparison
 Create a comparison table:
@@ -157,6 +189,21 @@ Common roles:
 - Note lead times for non-stock items
 - Always document why a part was chosen
 - Download datasheets for all selected components
+- **Identify 1-2 alternatives** for critical components (see `reference/COMPONENT-ALTERNATIVES.md`)
+- **Validate thermal** before confirming power components
+- **Check architecture decisions** from design-constraints.json before selecting
+
+## Reference Documents
+
+| Document | Use For |
+|----------|---------|
+| `REGULATOR-SELECTION.md` | LDO vs Buck selection criteria |
+| `DECOUPLING-STRATEGY.md` | Capacitor values for ICs |
+| `PASSIVE-SELECTION.md` | Resistor/capacitor fundamentals |
+| `COMPONENT-ALTERNATIVES.md` | Finding equivalent parts |
+| `DATASHEET-ANALYSIS.md` | Extracting key specs |
+| `COMPONENT-CATEGORIES.md` | Role naming conventions |
+| `JLC-SEARCH-TIPS.md` | Search strategies |
 
 ## Next Steps
 

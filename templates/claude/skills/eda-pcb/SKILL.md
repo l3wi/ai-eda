@@ -39,6 +39,53 @@ This skill activates when:
 @datasheets/ (for placement guidance)
 ```
 
+### 1.5 Pre-Layout Validation
+
+**Before starting layout, verify:**
+
+| Check | Source | Action if Missing |
+|-------|--------|-------------------|
+| Schematic ERC clean | schematic-status.md | Complete schematic first |
+| Layer count decided | design-constraints.json | See `LAYER-COUNT-DECISION.md` |
+| Stackup selected | design-constraints.json | See `STACKUP-DECISION.md` |
+| Board dimensions | design-constraints.json | Define constraints |
+| Critical interfaces | design-constraints.json | USB, SPI speeds, etc. |
+| Thermal budget | design-constraints.json | Power dissipation known |
+
+**Extract key constraints:**
+```json
+{
+  "board": {
+    "layers": 4,
+    "thickness": 1.6,
+    "dimensions": {"width": 50, "height": 40}
+  },
+  "dfmTargets": {
+    "manufacturer": "JLCPCB",
+    "minTraceWidth": 0.15,
+    "minClearance": 0.15,
+    "impedanceControl": true
+  },
+  "interfaces": {
+    "usb": true,
+    "highSpeedSpi": false
+  },
+  "thermal": {
+    "maxPowerDissipation": 2.5
+  }
+}
+```
+
+**Architecture Validation Warnings:**
+
+| Condition | Warning |
+|-----------|---------|
+| USB + 2-layer board | Cannot achieve 90Ω impedance |
+| Buck converter + no ground plane | EMI issues likely |
+| WiFi/BLE + 2-layer | Antenna performance degraded |
+| High-speed SPI (>20MHz) + long traces | Signal integrity risk |
+| No thermal plan + >1W dissipation | Thermal issues likely |
+
 ### 2. Initialize PCB
 1. Create PCB file or open existing
 2. Import netlist from schematic
@@ -105,6 +152,33 @@ See `reference/ROUTING-RULES.md` for trace width and clearance guidelines.
 - Verify component orientation marks
 - Review for manufacturing issues
 
+### 10. Pre-Manufacturing Review
+
+**Validation checklist before ordering:**
+
+| Category | Check | Reference |
+|----------|-------|-----------|
+| DRC | 0 errors, 0 warnings | `DRC-VIOLATIONS-GUIDE.md` |
+| Clearances | Meet manufacturer minimums | `DFM-RULES.md` |
+| Via sizes | Drill ≥ 0.3mm (JLCPCB std) | `DFM-RULES.md` |
+| Annular rings | ≥ 0.13mm (1oz copper) | `DFM-RULES.md` |
+| Trace widths | Power traces sized for current | `ROUTING-RULES.md` |
+| USB traces | 90Ω impedance, length matched | `HIGH-SPEED-ROUTING.md` |
+| Silkscreen | Not on pads, readable | Visual check |
+| Board outline | Closed shape, proper clearance | `DFM-RULES.md` |
+
+**Thermal verification:**
+- [ ] Power components have thermal relief
+- [ ] Thermal vias under QFN/thermal pads
+- [ ] Heat sink areas connected to copper pour
+- [ ] No thermal bottlenecks (narrow traces for high current)
+
+**Signal integrity verification:**
+- [ ] High-speed signals over solid ground
+- [ ] Return paths not broken by splits
+- [ ] Crystal area guarded, no traces crossing
+- [ ] Antenna keep-out respected (if applicable)
+
 ## Output Format
 
 ### pcb-status.md
@@ -163,10 +237,23 @@ Updated: [date]
 
 ## Reference Documents
 
-- `reference/PLACEMENT-STRATEGY.md` - Component placement guidelines
-- `reference/ROUTING-RULES.md` - Trace width and routing rules
-- `reference/EMI-CONSIDERATIONS.md` - EMI/EMC best practices
-- `reference/DFM-RULES.md` - Design for manufacturing rules
+| Document | Purpose |
+|----------|---------|
+| `reference/PLACEMENT-STRATEGY.md` | Component placement guidelines |
+| `reference/ROUTING-RULES.md` | Trace width and routing rules |
+| `reference/EMI-CONSIDERATIONS.md` | EMI/EMC best practices |
+| `reference/DFM-RULES.md` | Design for manufacturing rules |
+| `reference/DRC-VIOLATIONS-GUIDE.md` | Common DRC errors and fixes |
+| `reference/STACKUP-DECISION.md` | Layer stackup selection |
+| `reference/HIGH-SPEED-ROUTING.md` | USB, SPI, I2C, antenna routing |
+
+**Upstream documents:**
+| Document | What to Extract |
+|----------|-----------------|
+| `LAYER-COUNT-DECISION.md` (eda-architect) | Layer count rationale |
+| `THERMAL-BUDGET.md` (eda-architect) | Power dissipation limits |
+| `DECOUPLING-STRATEGY.md` (eda-research) | Cap values and placement |
+| `SCHEMATIC-REVIEW-CHECKLIST.md` (eda-schematics) | Pre-layout verification |
 
 ## Next Steps
 

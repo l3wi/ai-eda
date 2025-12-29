@@ -178,6 +178,108 @@ Where:
 - **No application notes** - Less support available
 - **NRND/EOL status** - Not recommended for new design
 
+## Extracting Decoupling Requirements
+
+### Where to Find
+- "Application Information" or "Application Circuit" section
+- "Power Supply Decoupling" or "Bypass Capacitors" section
+- "Typical Application" schematic
+
+### What to Extract
+- Capacitor values and types (ceramic, tantalum)
+- Placement requirements (distance from pins)
+- ESR requirements (especially for regulators)
+- Multiple capacitor values (e.g., "100nF + 10µF")
+
+### Example Format
+```
+Decoupling requirements:
+- VDD pins: 100nF ceramic each, close to pin
+- VDDA: 100nF + 1µF ceramic
+- Bulk: 10µF near power input
+- ESR: Not critical (typical ceramic OK)
+```
+
+---
+
+## Extracting Thermal Information
+
+### Key Parameters to Find
+
+| Parameter | Symbol | Where to Find |
+|-----------|--------|---------------|
+| Junction-to-ambient | θja | Thermal section, usually per package |
+| Junction-to-case | θjc | For heatsink calculations |
+| Max junction temp | Tj(max) | Absolute maximum ratings |
+| Power dissipation | Pd | May be calculated or given |
+
+### Thermal Calculation
+```
+Tj = Ta + (Pd × θja)
+
+Where:
+- Tj = Junction temperature (must be < Tj(max))
+- Ta = Ambient temperature (your operating environment)
+- Pd = Power dissipation
+- θja = Thermal resistance (from datasheet)
+```
+
+### Example Format
+```
+Thermal:
+- Package: SOT-223
+- θja: 62°C/W
+- Tj(max): 150°C
+- Safe Pd at 40°C ambient: (125-40)/62 = 1.37W max
+```
+
+---
+
+## Extracting Layout Guidelines
+
+### Where to Find
+- "PCB Layout" or "Layout Recommendations" section
+- "Application Information"
+- End of datasheet (often overlooked)
+
+### What to Extract
+- Component placement requirements
+- Trace width recommendations
+- Ground plane requirements
+- Thermal pad handling
+- Keep-out areas
+
+### Example Format
+```
+Layout notes:
+- Place input cap within 5mm of VIN pin
+- Thermal pad requires 9+ vias to ground plane
+- Keep sensitive traces away from switching node
+- Ground plane required under IC
+```
+
+---
+
+## Extracting Application Circuit Requirements
+
+### Key Elements
+1. **Required external components** - List all capacitors, resistors, inductors
+2. **Optional components** - Enable resistors, soft-start caps
+3. **Component constraints** - Voltage ratings, ESR limits
+4. **Alternative configurations** - Different output voltages, features
+
+### Example Format
+```
+Application circuit:
+- Input: 10µF ceramic, 16V min
+- Output: 22µF ceramic, 10V min, low ESR
+- Feedback: 10kΩ + 4.7kΩ for 3.3V output
+- Soft-start: 100nF (optional)
+- Enable: 100kΩ pull-up (internal pull-down)
+```
+
+---
+
 ## Datasheet Checklist
 
 Before selecting a component, verify:
@@ -190,3 +292,6 @@ Before selecting a component, verify:
 - [ ] Required external components are available
 - [ ] No red flags in absolute maximum ratings
 - [ ] Thermal design is feasible
+- [ ] Decoupling requirements documented
+- [ ] Layout guidelines noted
+- [ ] Alternatives identified (see `COMPONENT-ALTERNATIVES.md`)

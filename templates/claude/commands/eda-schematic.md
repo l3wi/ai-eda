@@ -58,12 +58,27 @@ Read project context:
 - `@docs/schematic-status.md` - Current progress (if exists)
 - `@datasheets/` - Reference circuits from datasheets
 
+### Extract Key Constraints
+
+From `design-constraints.json`:
+- `power.topology` - LDO vs buck (affects schematic complexity)
+- `power.rails[]` - All voltage rails to implement
+- `board.layers` - 2-layer = keep simpler, 4+ = can be complex
+- `thermal.budget` - Identify hot components for grouping
+- `dfmTargets.assembly` - Package sizes must match capability
+
 ### Verify Readiness
 
-Check that components have been selected:
-- If `component-selections.md` missing or incomplete:
-  - List what's missing
-  - Suggest running `/eda-source [role]` first
+**Pre-schematic checklist:**
+- [ ] `design-constraints.json` exists with power topology defined?
+- [ ] `component-selections.md` has MCU, regulators, critical passives?
+- [ ] Datasheets downloaded for reference circuits?
+- [ ] All required roles selected (MCU, regulator, decoupling)?
+
+If any missing:
+1. List what's needed
+2. Suggest running `/eda-source [role]` for missing components
+3. Don't proceed until basics are in place
 
 ## Interactive Workflow
 
@@ -160,14 +175,49 @@ Throughout the session:
 - Explain any deviations from typical patterns
 - Reference datasheets when making connections
 
+## Validation Gates
+
+### After Each Sheet
+- [ ] All components placed from selections?
+- [ ] Decoupling caps per datasheet requirements?
+- [ ] Power connections complete?
+- [ ] Net names follow conventions?
+- [ ] ERC errors addressed?
+
+### Before Layout
+
+Complete the schematic review checklist (`eda-schematics/reference/SCHEMATIC-REVIEW-CHECKLIST.md`):
+
+**Critical checks:**
+- [ ] All power pins connected with proper decoupling
+- [ ] Reset circuit correct (polarity, debounce)
+- [ ] Crystal load caps calculated (not guessed)
+- [ ] USB has ESD protection and CC resistors
+- [ ] I2C has pull-ups
+- [ ] All external interfaces have protection
+- [ ] Test points present
+- [ ] ERC passes with 0 errors
+
+**If any fail:** Fix before suggesting layout.
+
+## Reference Documents
+
+- `eda-schematics/reference/SCHEMATIC-HIERARCHY-DECISION.md` - Sheet organization
+- `eda-schematics/reference/SCHEMATIC-REVIEW-CHECKLIST.md` - Pre-layout validation
+- `eda-schematics/reference/ERC-VIOLATIONS-GUIDE.md` - Fixing common ERC errors
+- `eda-schematics/reference/NET-NAMING.md` - Net naming conventions
+- `eda-schematics/reference/REFERENCE-CIRCUITS.md` - Common circuit patterns
+
 ## Next Steps
 
 When schematic is complete:
-- Generate netlist
-- Run ERC check
-- Suggest `/eda-layout` for PCB layout
-- Update stage to "pcb"
+1. Run full ERC check
+2. Complete pre-layout checklist
+3. Generate netlist
+4. Suggest `/eda-layout` for PCB layout
+5. Update `design-constraints.json` stage to "pcb"
 
 If partially complete:
 - Note where to resume
 - Update schematic-status.md
+- List remaining items

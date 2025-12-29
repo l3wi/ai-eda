@@ -32,6 +32,16 @@ For the role **$ARGUMENTS**, ask:
 - Package size preferences? (Easy to hand-solder? Compact?)
 - Any brands or series to prefer or avoid?
 
+### 1.5 Check Architecture Constraints
+
+Review `design-constraints.json` before searching:
+- **Power topology:** If sourcing regulator, was LDO or buck decided?
+- **Thermal budget:** Check `thermal.hotComponents` for power limit
+- **DFM targets:** Assembly method affects package options
+- **Layer count:** May indicate design complexity
+
+For power components, reference `eda-research/reference/REGULATOR-SELECTION.md`.
+
 ### 2. Search Components
 
 **ALWAYS search LOCAL libraries first, then online.**
@@ -98,6 +108,33 @@ Include for each option:
 - Key specifications relevant to the role
 - Price/stock (note: local library data may be stale)
 - Pros and cons
+
+### 4.5 Validate Before Presenting
+
+For each candidate, verify:
+
+**Thermal check (power components):**
+```
+P_loss = (Vin - Vout) × I_load  [for LDO]
+P_loss = (1 - efficiency) × P_out  [for buck]
+
+Compare to thermal budget from design-constraints.json
+Flag if P_loss > allocated budget
+```
+
+**Assembly check:**
+| Assembly Method | Package OK? |
+|----------------|-------------|
+| Hand | 0603+, no QFN/BGA |
+| Reflow | 0402+, QFN OK |
+| Turnkey | Any, but check JLC stock |
+
+**Architecture check:**
+- Regulator type matches LDO/buck decision
+- Noise spec appropriate for rail type
+- Efficiency acceptable for battery apps
+
+Include validation status in the options table (✓ or ⚠ with note).
 
 ### 5. Get Selection
 

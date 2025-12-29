@@ -33,6 +33,7 @@ Guide the user through defining their project by asking questions in this order:
 - What voltage rails do you need? (3.3V, 5V, 12V, etc.)
 - Estimated power consumption?
 - Battery life requirements (if applicable)?
+- Any high-power components? (motors, LEDs, RF amplifiers)
 
 ### 3. Processing
 - Do you need a microcontroller?
@@ -44,6 +45,16 @@ Guide the user through defining their project by asking questions in this order:
 - Wireless needs? (WiFi, Bluetooth, LoRa, etc.)
 - Wired interfaces? (Ethernet, CAN, RS485, etc.)
 - USB required? (Device, host, or OTG?)
+
+### 4.5 Board Complexity (Architecture Decisions)
+These questions help determine layer count:
+- Will you have switching power supplies (buck/boost converters)?
+- Any high-speed signals? (USB 2.0+, Ethernet, HDMI)
+- Noise-sensitive circuits? (precision ADC, RF receiver, audio)
+
+Based on answers, recommend:
+- 2-layer: Simple boards, LDO power, low-speed only
+- 4-layer: Any switching regulator, USB, Ethernet, WiFi/BLE
 
 ### 5. User Interface
 - Buttons, switches, or encoders?
@@ -61,15 +72,47 @@ Guide the user through defining their project by asking questions in this order:
 - Mounting hole positions?
 - Connector locations?
 
-### 8. Environment and Compliance
+### 7.5 Thermal Considerations
+If total power >1W or any component >0.5W:
+- Identify hot components (regulators, motor drivers, RF)
+- Enclosure ventilation? (sealed plastic is 2-3x worse than open air)
+- Need for heatsinks or thermal vias?
+
+Quick thermal rules:
+- <1W total: Usually fine with natural convection
+- 1-2W: Monitor, ensure copper pour space
+- >2W: Requires explicit thermal planning
+- Any component >0.5W: Needs dedicated attention
+
+### 8. Environment
 - Operating temperature range?
 - Indoor or outdoor use?
-- Certifications needed? (CE, FCC, etc.)
 
-### 9. Manufacturing
+### 9. Manufacturing & DFM
 - Target quantity?
 - Assembly method? (Hand solder, reflow, turnkey)
 - Budget constraints?
+- Preferred PCB manufacturer? (JLCPCB, PCBWay, OSHPark)
+
+DFM early checks:
+- If hand assembly: Any fine-pitch components (<0.5mm pin pitch)?
+- If turnkey: Confirm component availability at manufacturer
+
+Warning: Fine-pitch + hand assembly is difficult - recommend reflow or turnkey
+
+## Architecture Validation
+
+Before finalizing, check for these warning conditions:
+
+| If... | Then warn... |
+|-------|--------------|
+| 2-layer + switching regulator | Consider 4-layer for better ground plane |
+| 2-layer + USB/Ethernet | Controlled impedance difficult |
+| >2W total + no thermal plan | Add thermal budget |
+| Hand assembly + fine-pitch | Verify solderability |
+| Battery + LDO with Vin-Vout >2V | Consider buck for efficiency |
+
+Present warnings to user and ask if they want to update the design or acknowledge the risk.
 
 ## Output
 

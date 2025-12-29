@@ -7,7 +7,7 @@ The `design-constraints.json` file captures machine-readable project constraints
 ```json
 {
   "meta": {
-    "version": "1.0",
+    "version": "1.1",
     "projectName": "string",
     "created": "ISO8601 timestamp",
     "lastUpdated": "ISO8601 timestamp",
@@ -126,6 +126,32 @@ The `design-constraints.json` file captures machine-readable project constraints
     "stackup": "string (e.g., 'sig-gnd-pwr-sig' for 4-layer)"
   },
 
+  "stackupDecision": {
+    "layers": "number (2, 4, 6)",
+    "rationale": "string (why this layer count was chosen)",
+    "impedanceControlRequired": "boolean",
+    "highSpeedSignals": ["USB", "Ethernet", "HDMI", "DDR", "PCIe"]
+  },
+
+  "thermal": {
+    "estimatedTotalWatts": "number",
+    "hotComponents": [
+      {
+        "role": "string (e.g., 'regulator-5v', 'motor-driver')",
+        "watts": "number"
+      }
+    ],
+    "coolingStrategy": "natural | forced | heatsink | active",
+    "ambientTempMax": "number (°C, operating environment)"
+  },
+
+  "dfmTargets": {
+    "manufacturer": "JLCPCB | PCBWay | OSHPark | other",
+    "assemblyMethod": "hand | reflow | turnkey",
+    "budgetTier": "prototype | low_volume | production",
+    "finePitchComponents": "boolean (any components with <0.5mm pitch)"
+  },
+
   "environment": {
     "tempMin": "number (°C)",
     "tempMax": "number (°C)",
@@ -134,11 +160,6 @@ The `design-constraints.json` file captures machine-readable project constraints
     "ipRating": "string (e.g., 'IP65', optional)",
     "vibration": "boolean",
     "humidity": "string (e.g., '0-95% non-condensing')"
-  },
-
-  "compliance": {
-    "certifications": ["CE", "FCC", "UL", "RoHS"],
-    "standards": ["string"]
   },
 
   "manufacturing": {
@@ -172,7 +193,7 @@ For a simple project, only required fields:
 ```json
 {
   "meta": {
-    "version": "1.0",
+    "version": "1.1",
     "projectName": "led-blinker",
     "created": "2025-01-15T10:00:00Z",
     "lastUpdated": "2025-01-15T10:00:00Z",
@@ -186,7 +207,7 @@ For a simple project, only required fields:
   },
   "power": {
     "input": { "type": "USB", "voltage": { "min": 4.5, "max": 5.5 } },
-    "rails": [{ "name": "VCC_3V3", "voltage": 3.3, "currentMa": 100 }]
+    "rails": [{ "name": "VCC_3V3", "voltage": 3.3, "currentMa": 100, "source": "regulator" }]
   },
   "mcu": {
     "required": true,
@@ -197,9 +218,59 @@ For a simple project, only required fields:
     "layers": 2,
     "size": { "maxWidthMm": 30, "maxHeightMm": 30 }
   },
+  "stackupDecision": {
+    "layers": 2,
+    "rationale": "Simple low-speed design with LDO, no switching regulators",
+    "impedanceControlRequired": false,
+    "highSpeedSignals": []
+  },
+  "thermal": {
+    "estimatedTotalWatts": 0.5,
+    "hotComponents": [],
+    "coolingStrategy": "natural"
+  },
+  "dfmTargets": {
+    "manufacturer": "JLCPCB",
+    "assemblyMethod": "hand",
+    "budgetTier": "prototype",
+    "finePitchComponents": false
+  },
   "components": {
     "selected": [],
     "pending": ["mcu", "regulator-3v3", "led", "resistor-led"]
+  }
+}
+```
+
+## Complex Example (WiFi Gateway with Switching Regulator)
+
+```json
+{
+  "meta": {
+    "version": "1.1",
+    "projectName": "wifi-gateway",
+    "stage": "architect"
+  },
+  "stackupDecision": {
+    "layers": 4,
+    "rationale": "Switching regulator + WiFi requires solid ground plane",
+    "impedanceControlRequired": true,
+    "highSpeedSignals": ["USB"]
+  },
+  "thermal": {
+    "estimatedTotalWatts": 3.5,
+    "hotComponents": [
+      { "role": "regulator-5v", "watts": 1.2 },
+      { "role": "wifi-module", "watts": 0.8 }
+    ],
+    "coolingStrategy": "natural",
+    "ambientTempMax": 40
+  },
+  "dfmTargets": {
+    "manufacturer": "JLCPCB",
+    "assemblyMethod": "turnkey",
+    "budgetTier": "low_volume",
+    "finePitchComponents": true
   }
 }
 ```
@@ -226,3 +297,15 @@ When reading this file, skills should validate:
 3. Component `selected` entries have valid LCSC numbers
 4. Board dimensions are reasonable (warn if < 10mm or > 300mm)
 5. Power budget is feasible (sum of rail currents vs input capacity)
+
+## Architecture Warnings
+
+Flag these combinations during the architect phase:
+
+| Condition | Warning |
+|-----------|---------|
+| 2-layer board + switching regulator in power rails | "Consider 4-layer - switching regulators need solid ground plane" |
+| 2-layer board + USB/Ethernet in connectivity | "Controlled impedance difficult on 2-layer - consider 4-layer" |
+| `thermal.estimatedTotalWatts` > 2 + no `thermal.coolingStrategy` | "Add thermal budget estimation - >2W needs planning" |
+| `dfmTargets.assemblyMethod` = "hand" + `dfmTargets.finePitchComponents` = true | "Verify solderability - fine-pitch components difficult to hand solder" |
+| `thermal.hotComponents` has item with watts > 0.5 + no thermal strategy | "Component dissipating >0.5W needs dedicated thermal attention" |

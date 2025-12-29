@@ -37,9 +37,29 @@ This skill activates when:
 @datasheets/ (relevant datasheets)
 ```
 
-Verify all required components have been selected. If not, suggest running `/eda-source` first.
+**From design-constraints.json, extract:**
+- `power.topology` - LDO vs buck affects schematic complexity
+- `power.rails[]` - All voltage rails to implement
+- `board.layers` - 2-layer = simpler designs, 4+ = can be more complex
+- `thermal.budget` - Identify hot components for grouping
+- `dfmTargets.assembly` - Package sizes must match
+
+### 1.5. Validate Readiness
+
+Before starting schematic:
+
+- [ ] All required components selected in `component-selections.md`?
+- [ ] MCU selected with known pinout?
+- [ ] Voltage regulators selected?
+- [ ] Critical passives (decoupling values) defined?
+- [ ] Datasheets downloaded for reference circuits?
+
+If not, suggest running `/eda-source [role]` first.
 
 ### 2. Plan Sheet Organization
+
+See `reference/SCHEMATIC-HIERARCHY-DECISION.md` for detailed guidance.
+
 Based on complexity, organize into sheets:
 
 **Simple design (1-2 sheets):**
@@ -110,6 +130,18 @@ Use net labels for:
 - Run ERC (electrical rules check)
 - Document status
 
+See `reference/ERC-VIOLATIONS-GUIDE.md` for fixing common ERC errors.
+
+### 8. Pre-Layout Review
+
+Before proceeding to layout, complete `reference/SCHEMATIC-REVIEW-CHECKLIST.md`:
+- Power section verification
+- Decoupling validation
+- Interface protection check
+- Test points present
+- Net naming consistency
+- Documentation complete
+
 ## Net Naming Convention
 
 See `reference/NET-NAMING.md` for complete conventions.
@@ -170,6 +202,32 @@ Updated: [date]
 - Keep schematic readable - avoid wire spaghetti
 - Add notes for non-obvious connections
 - Mark intentionally unconnected pins with NC flag
+
+## Architecture Validation Warnings
+
+Check these before proceeding to layout:
+
+| Condition | Warning |
+|-----------|---------|
+| Buck converter selected but no inductor in schematic | Missing critical component |
+| USB interface but no ESD protection | Add ESD diodes before layout |
+| External connector but no protection | Add TVS/ESD on exposed signals |
+| MCU with <100nF per VDD pin | Verify decoupling against datasheet |
+| Crystal but no load cap calculation | Recalculate CL values |
+| I2C bus but no pull-ups | Add pull-ups (4.7K-10K) |
+| SPI CS lines floating | Add pull-ups to prevent glitches |
+| Reset pin without RC debounce | Add debounce circuit |
+
+## Reference Documents
+
+| Document | Purpose |
+|----------|---------|
+| `reference/NET-NAMING.md` | Net naming conventions |
+| `reference/SYMBOL-ORGANIZATION.md` | Schematic layout patterns |
+| `reference/REFERENCE-CIRCUITS.md` | Common circuit patterns |
+| `reference/SCHEMATIC-HIERARCHY-DECISION.md` | Sheet organization guidance |
+| `reference/SCHEMATIC-REVIEW-CHECKLIST.md` | Pre-layout validation |
+| `reference/ERC-VIOLATIONS-GUIDE.md` | Fixing ERC errors |
 
 ## Next Steps
 

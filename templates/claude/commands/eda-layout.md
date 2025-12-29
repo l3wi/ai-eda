@@ -23,6 +23,31 @@ Check that schematic is complete:
 - If schematic not done, suggest completing it first
 - Verify netlist can be generated
 
+### Pre-Layout Checklist
+
+**Before starting layout, verify:**
+
+| Check | Source | Action if Missing |
+|-------|--------|-------------------|
+| Schematic ERC clean | schematic-status.md | Complete schematic first |
+| Layer count decided | design-constraints.json | Use `LAYER-COUNT-DECISION.md` |
+| Board dimensions | design-constraints.json | Define before layout |
+| Component BOM complete | component-selections.md | Source components first |
+| Thermal budget | design-constraints.json | Calculate if >1W power |
+
+**Extract key constraints:**
+```
+Board: layers, thickness, dimensions
+DFM: manufacturer, min trace, min clearance
+Interfaces: USB (90Ω), SPI speed, I2C mode
+Thermal: max dissipation, hotspots
+```
+
+**Architecture warnings to check:**
+- USB + 2-layer → Cannot achieve impedance control
+- Buck converter + 2-layer → EMI problems
+- WiFi/BLE + 2-layer → Antenna performance issues
+
 ## Phases
 
 ### Phase: setup (or initial)
@@ -74,6 +99,14 @@ Ask user throughout:
 - "Placing USB connector on top edge. Good location?"
 - "MCU centered with pins facing outward. Acceptable?"
 
+**Post-Placement Validation:**
+- [ ] All components placed
+- [ ] No courtyard overlaps
+- [ ] Decoupling caps adjacent to ICs
+- [ ] Crystal within 5mm of MCU
+- [ ] Connectors at board edges
+- [ ] Routing channels visible
+
 ### Phase: route
 
 1. **Design Rules Check**
@@ -98,6 +131,14 @@ Ask user throughout:
 5. **DRC Check**
    - Run DRC after major routing sections
    - Fix violations before continuing
+
+**Post-Routing Validation:**
+- [ ] All nets routed (no ratsnest)
+- [ ] DRC clean
+- [ ] USB traces: 90Ω, length matched
+- [ ] Power traces: sized for current
+- [ ] Crystal area: guarded, no crossing traces
+- [ ] Antenna keep-out: clear (if applicable)
 
 ### Phase: review
 
@@ -171,3 +212,14 @@ When layout complete:
 If partially complete:
 - Note where to resume
 - List remaining work
+
+## Reference Documents
+
+| Document | Phase | Use For |
+|----------|-------|---------|
+| `STACKUP-DECISION.md` | setup | Layer arrangement |
+| `PLACEMENT-STRATEGY.md` | place | Component positioning |
+| `HIGH-SPEED-ROUTING.md` | route | USB, SPI, crystal, antenna |
+| `ROUTING-RULES.md` | route | Trace widths, clearances |
+| `DRC-VIOLATIONS-GUIDE.md` | route, review | Fixing DRC errors |
+| `DFM-RULES.md` | review | Manufacturing validation |
