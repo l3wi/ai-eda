@@ -34,17 +34,15 @@ For the role **$ARGUMENTS**, ask:
 
 ### 2. Search LCSC (PRIMARY SOURCE)
 
-**ALWAYS use LCSC MCP tools first** - this is your primary component database:
+**ALWAYS use LCSC MCP tools first** - these are native Claude tools, NOT bash commands.
 
-```
-# Step 1: Search for components
-mcp__lcsc__component_search("<search terms>")
+Call MCP tools directly like any other tool:
+- Use `mcp__lcsc__component_search` with `query` parameter to search
+- Use `mcp__lcsc__component_get` with `lcsc_id` parameter to get details
 
-# Step 2: Get details for promising candidates (includes datasheet URL)
-mcp__lcsc__component_get("<lcsc_part_number>")
-```
+Example: To search for "buck converter", call the tool `mcp__lcsc__component_search` with argument `{"query": "buck converter 5V 1A"}`.
 
-**Do NOT use WebSearch for finding components** - the LCSC MCP has real-time stock, pricing, and specifications.
+**Do NOT use Bash to call MCP tools. Do NOT use WebSearch for finding components.**
 
 Focus on:
 - In-stock components (check `stock` field)
