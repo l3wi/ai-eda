@@ -1,24 +1,46 @@
 /**
- * Init command - Initialize a new EDA project
+ * Init command - Interactive EDA project initialization
  */
 
 import { existsSync, mkdirSync, writeFileSync, copyFileSync, readdirSync, statSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
-import ora from 'ora';
+import * as p from '@clack/prompts';
 import {
   isKicadMcpInstalled,
   installKicadMcp,
   getKicadMcpConfig,
   configureMcpJson,
 } from './kicad-mcp.js';
+import { getKicadProjectsDir, shortenPath, runAllChecks } from '../utils/index.js';
 
 export interface InitOptions {
-  template: 'basic' | 'advanced';
   noGit: boolean;
-  layers: number;
+  yes?: boolean; // Non-interactive mode
 }
+
+// Default constraints template - layers defined later via /eda-new
+const DEFAULT_CONSTRAINTS = {
+  project: {
+    name: '',
+    version: '0.1.0',
+    description: '',
+  },
+  power: {
+    input: { type: '', voltage: { min: 0, max: 0 } },
+    rails: [],
+  },
+  board: {
+    size: { width_mm: 0, height_mm: 0 },
+    mounting_holes: [],
+  },
+  interfaces: [],
+  environment: {
+    temp_min_c: -20,
+    temp_max_c: 70,
+  },
+};
 
 const DIRECTORIES = [
   '.claude/commands',
@@ -34,99 +56,224 @@ const DIRECTORIES = [
 ];
 
 export async function initCommand(
-  projectName: string,
-  options: InitOptions
+  nameArg?: string,
+  options: InitOptions = { noGit: false }
 ): Promise<void> {
-  const projectDir = join(process.cwd(), projectName);
-
+  // Show intro
   console.log('');
-  console.log(chalk.bold(`Initializing EDA project: ${chalk.cyan(projectName)}`));
-  console.log(chalk.dim(`Template: ${options.template} | Layers: ${options.layers}`));
-  console.log('');
+  p.intro(chalk.bgCyan.black(' AI-EDA Project Setup '));
 
-  // Create project directory
+  // Handle cancellation
+  const onCancel = () => {
+    p.cancel('Setup cancelled.');
+    process.exit(0);
+  };
+
+  // Step 1: Project name
+  let projectName: string;
+  if (nameArg) {
+    projectName = nameArg;
+    p.log.info(`Project name: ${chalk.cyan(projectName)}`);
+  } else if (options.yes) {
+    p.cancel('Project name is required in non-interactive mode.');
+    process.exit(1);
+  } else {
+    const nameResult = await p.text({
+      message: 'Project name:',
+      placeholder: 'my-pcb-project',
+      validate: (value) => {
+        if (!value) return 'Project name is required';
+        if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
+          return 'Use only letters, numbers, hyphens, and underscores';
+        }
+        return undefined;
+      },
+    });
+
+    if (p.isCancel(nameResult)) {
+      onCancel();
+      return;
+    }
+    projectName = nameResult;
+  }
+
+  // Step 2: Location selection
+  let projectDir: string;
+  const kicadDir = getKicadProjectsDir();
+
+  if (options.yes) {
+    // Default to current directory in non-interactive mode
+    projectDir = join(process.cwd(), projectName);
+  } else {
+    const locationOptions: { value: string; label: string; hint?: string }[] = [
+      {
+        value: 'cwd',
+        label: `Current directory`,
+        hint: `./${projectName}`,
+      },
+    ];
+
+    if (kicadDir) {
+      locationOptions.push({
+        value: 'kicad',
+        label: 'KiCad Projects folder',
+        hint: shortenPath(join(kicadDir, projectName)),
+      });
+    }
+
+    const locationResult = await p.select({
+      message: 'Where should we create the project?',
+      options: locationOptions,
+    });
+
+    if (p.isCancel(locationResult)) {
+      onCancel();
+      return;
+    }
+
+    projectDir = locationResult === 'kicad' && kicadDir
+      ? join(kicadDir, projectName)
+      : join(process.cwd(), projectName);
+  }
+
+  // Check if directory already exists
   if (existsSync(projectDir)) {
-    console.error(chalk.red(`Error: Directory "${projectName}" already exists`));
+    p.log.error(`Directory "${projectDir}" already exists`);
+    p.cancel('Cannot create project in existing directory.');
     process.exit(1);
   }
 
+  // Step 4: Environment checks
+  const envSpinner = p.spinner();
+  envSpinner.start('Checking environment...');
+
+  const envResults = await runAllChecks();
+  envSpinner.stop('Environment checked');
+
+  // Display results
+  p.log.message(''); // blank line
+  for (const r of envResults) {
+    let icon: string;
+    let message: string;
+
+    if (r.status === 'pass') {
+      icon = chalk.green('\u2713');
+      message = chalk.dim(r.message);
+    } else if (r.status === 'warn') {
+      icon = chalk.yellow('\u26A0');
+      message = chalk.yellow(r.message);
+    } else {
+      icon = chalk.red('\u2717');
+      message = chalk.red(r.message);
+    }
+
+    p.log.message(`${icon} ${chalk.bold(r.name)}: ${message}`);
+  }
+
+  const hasWarnings = envResults.some((r) => r.status === 'warn' || r.status === 'fail');
+  if (hasWarnings && !options.yes) {
+    p.log.message('');
+    p.log.warn(`Some tools are missing. Run ${chalk.cyan('ai-eda doctor --fix')} to install them.`);
+    p.log.message('');
+
+    const continueResult = await p.confirm({
+      message: 'Continue with project creation?',
+      initialValue: true,
+    });
+
+    if (p.isCancel(continueResult) || !continueResult) {
+      onCancel();
+      return;
+    }
+  }
+
+  // Step 5: Create project
+  const createSpinner = p.spinner();
+  createSpinner.start('Creating project structure...');
+
   // Create directory structure
-  const dirSpinner = ora('Creating directory structure...').start();
   mkdirSync(projectDir, { recursive: true });
 
   for (const dir of DIRECTORIES) {
     const dirPath = join(projectDir, dir);
     mkdirSync(dirPath, { recursive: true });
-
-    // Add .gitkeep to empty directories
     writeFileSync(join(dirPath, '.gitkeep'), '');
   }
-  dirSpinner.succeed('Created directory structure');
 
-  // Copy templates from the templates directory
-  const templateSpinner = ora('Copying templates...').start();
+  // Copy templates
   const templatesDir = getTemplatesDir();
   if (templatesDir && existsSync(templatesDir)) {
-    await copyTemplates(templatesDir, projectDir, projectName, options);
-    templateSpinner.succeed('Copied project templates');
+    await copyTemplates(templatesDir, projectDir, projectName);
   } else {
-    // Create minimal templates inline
-    createMinimalTemplates(projectDir, projectName, options);
-    templateSpinner.succeed('Created project files');
+    createMinimalTemplates(projectDir, projectName);
   }
 
-  // Check and install KiCad MCP if needed
-  const mcpSpinner = ora('Checking KiCad MCP Server...').start();
+  createSpinner.stop('Created project structure');
+
+  // Configure MCP
+  const mcpSpinner = p.spinner();
+  mcpSpinner.start('Configuring MCP servers...');
+
   const { built: mcpInstalled } = isKicadMcpInstalled();
-
   if (!mcpInstalled) {
-    mcpSpinner.text = 'Installing KiCad MCP Server (first-time setup)...';
-    const success = await installKicadMcp({ verbose: false });
-    if (success) {
-      mcpSpinner.succeed('Installed KiCad MCP Server');
-    } else {
-      mcpSpinner.warn('Could not install KiCad MCP Server. Run "ai-eda doctor --fix" later.');
-    }
-  } else {
-    mcpSpinner.succeed('KiCad MCP Server ready');
+    // Try to install KiCad MCP silently
+    await installKicadMcp({ verbose: false });
   }
 
-  // Configure local .mcp.json with KiCad MCP path
-  const configSpinner = ora('Configuring MCP servers...').start();
   if (configureMcpJson(projectDir)) {
-    configSpinner.succeed('Configured MCP servers');
+    mcpSpinner.stop('Configured MCP servers');
   } else {
-    configSpinner.warn('Could not configure KiCad MCP. Run "ai-eda doctor --fix" first.');
+    mcpSpinner.stop('MCP configuration skipped (run ai-eda doctor --fix)');
   }
 
-  // Initialize git if not disabled
+  // Initialize git
   if (!options.noGit) {
-    const gitSpinner = ora('Initializing git repository...').start();
+    const gitSpinner = p.spinner();
+    gitSpinner.start('Initializing git repository...');
     try {
       const { execSync } = await import('child_process');
       execSync('git init', { cwd: projectDir, stdio: 'ignore' });
-      gitSpinner.succeed('Initialized git repository');
+      gitSpinner.stop('Initialized git repository');
     } catch {
-      gitSpinner.warn('Could not initialize git repository');
+      gitSpinner.stop('Git initialization skipped');
     }
   }
 
+  // Show success and next steps
+  p.outro(chalk.green(`Project "${projectName}" created!`));
+
+  // Print detailed next steps
+  printNextSteps(projectName, projectDir);
+}
+
+function printNextSteps(projectName: string, projectDir: string): void {
+  const isInCwd = projectDir === join(process.cwd(), projectName);
+  const cdPath = isInCwd ? projectName : projectDir;
+
   console.log('');
-  console.log(chalk.bold.green(`Project "${projectName}" created successfully!`));
+  console.log(chalk.bold('  Next steps:'));
   console.log('');
-  console.log(chalk.bold('Next steps:'));
-  console.log(chalk.dim('  1.'), `cd ${projectName}`);
-  console.log(chalk.dim('  2.'), 'Open in Claude Code');
-  console.log(chalk.dim('  3.'), `Run ${chalk.cyan('/eda-spec')} to define requirements`);
+  console.log(`  ${chalk.dim('1.')} cd ${cdPath}`);
+  console.log(`  ${chalk.dim('2.')} claude`);
+  console.log(`  ${chalk.dim('3.')} /eda-new`);
+  console.log('');
+  console.log(chalk.bold('  Available commands:'));
+  console.log('');
+  console.log(`  ${chalk.cyan('/eda-new')}        Define project requirements`);
+  console.log(`  ${chalk.cyan('/eda-source')}     Source components`);
+  console.log(`  ${chalk.cyan('/eda-schematic')}  Create schematic`);
+  console.log(`  ${chalk.cyan('/eda-layout')}     Layout PCB`);
+  console.log(`  ${chalk.cyan('/eda-check')}      Validate design`);
+  console.log(`  ${chalk.cyan('/eda-export')}     Export for manufacturing`);
+  console.log('');
+  console.log(chalk.dim(`  Need help? Run: ai-eda doctor`));
   console.log('');
 }
 
 function getTemplatesDir(): string | null {
-  // Try to find templates relative to the package
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
 
-  // Look for templates in various locations
   const possiblePaths = [
     join(__dirname, '../../templates'),
     join(__dirname, '../../../templates'),
@@ -145,8 +292,7 @@ function getTemplatesDir(): string | null {
 async function copyTemplates(
   templatesDir: string,
   projectDir: string,
-  projectName: string,
-  options: InitOptions
+  projectName: string
 ): Promise<void> {
   // Copy Claude commands
   const commandsDir = join(templatesDir, 'claude/commands');
@@ -174,7 +320,6 @@ async function copyTemplates(
         const content = readFileSync(join(projectFilesDir, file), 'utf-8');
         const rendered = renderTemplate(content, {
           PROJECT_NAME: projectName,
-          LAYERS: String(options.layers),
         });
         const outputName = file.replace('.template', '');
         writeFileSync(join(projectDir, outputName), rendered);
@@ -196,26 +341,12 @@ async function copyTemplates(
     }
   }
 
-  // Create design-constraints.json with layer count
+  // Create design-constraints.json template
   const constraints = {
+    ...DEFAULT_CONSTRAINTS,
     project: {
+      ...DEFAULT_CONSTRAINTS.project,
       name: projectName,
-      version: '0.1.0',
-      description: '',
-    },
-    power: {
-      input: { type: '', voltage: { min: 0, max: 0 } },
-      rails: [],
-    },
-    board: {
-      layers: options.layers,
-      size: { width_mm: 0, height_mm: 0 },
-      mounting_holes: [],
-    },
-    interfaces: [],
-    environment: {
-      temp_min_c: -20,
-      temp_max_c: 70,
     },
   };
   writeFileSync(join(projectDir, 'docs/design-constraints.json'), JSON.stringify(constraints, null, 2));
@@ -248,10 +379,9 @@ function renderTemplate(content: string, variables: Record<string, string>): str
 
 function createMinimalTemplates(
   projectDir: string,
-  projectName: string,
-  options: InitOptions
+  projectName: string
 ): void {
-  // Create .mcp.json - KiCad config will be added by configureMcpJson() after this
+  // Create .mcp.json
   const mcpConfig: Record<string, unknown> = {
     mcpServers: {
       lcsc: {
@@ -265,7 +395,6 @@ function createMinimalTemplates(
     },
   };
 
-  // Try to add KiCad config if available
   const kicadConfig = getKicadMcpConfig();
   if (kicadConfig) {
     (mcpConfig.mcpServers as Record<string, unknown>).kicad = kicadConfig;
@@ -311,11 +440,6 @@ production/*.zip
 
 AI-assisted EDA project using @ai-eda toolkit.
 
-## Build Commands
-
-- Run DRC: Use KiCad or \`/eda-validate pcb\`
-- Export: Use \`/eda-export jlcpcb\`
-
 ## Project Structure
 
 - \`hardware/\`: KiCad project files
@@ -328,42 +452,26 @@ AI-assisted EDA project using @ai-eda toolkit.
 
 Use these commands for the EDA workflow:
 
-1. \`/eda-spec\` - Define project requirements
+1. \`/eda-new\` - Define project requirements
 2. \`/eda-source [role]\` - Source components
-3. \`/eda-library [part]\` - Fetch component libraries
-4. \`/eda-schematic\` - Create schematic
-5. \`/eda-pcb-place\` - Place components on PCB
-6. \`/eda-pcb-route\` - Route traces
-7. \`/eda-validate\` - Validate design
-8. \`/eda-export\` - Export manufacturing files
+3. \`/eda-schematic [sheet]\` - Create schematic
+4. \`/eda-layout [phase]\` - Layout PCB
+5. \`/eda-check [scope]\` - Validate design
+6. \`/eda-export [format]\` - Export manufacturing files
 
 ## IMPORTANT
 
-- Always run \`/eda-validate\` before \`/eda-export\`
+- Always run \`/eda-check full\` before \`/eda-export\`
 - Check stock levels before finalizing component selection
 `;
   writeFileSync(join(projectDir, 'CLAUDE.md'), claudeMd);
 
   // Create design-constraints.json template
   const constraints = {
+    ...DEFAULT_CONSTRAINTS,
     project: {
+      ...DEFAULT_CONSTRAINTS.project,
       name: projectName,
-      version: '0.1.0',
-      description: '',
-    },
-    power: {
-      input: { type: '', voltage: { min: 0, max: 0 } },
-      rails: [],
-    },
-    board: {
-      layers: options.layers,
-      size: { width_mm: 0, height_mm: 0 },
-      mounting_holes: [],
-    },
-    interfaces: [],
-    environment: {
-      temp_min_c: -20,
-      temp_max_c: 70,
     },
   };
   writeFileSync(join(projectDir, 'docs/design-constraints.json'), JSON.stringify(constraints, null, 2));

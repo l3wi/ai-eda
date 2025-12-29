@@ -3,22 +3,27 @@
  *
  * Handles installation of the external mixelpixx/KiCAD-MCP-Server
  * to ~/.ai-eda/kicad-mcp for use with Claude Code.
+ *
+ * Uses UV for Python dependency management in an isolated venv.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
+import { homedir, platform } from 'os';
 import chalk from 'chalk';
 import ora from 'ora';
 
 const KICAD_MCP_REPO = 'https://github.com/mixelpixx/KiCAD-MCP-Server.git';
 const KICAD_MCP_DIR_NAME = 'kicad-mcp';
+const PYTHON_DEPS = ['kicad-skip', 'Pillow', 'cairosvg', 'pydantic'];
 
 export interface KicadMcpPaths {
   baseDir: string;       // ~/.ai-eda
   mcpDir: string;        // ~/.ai-eda/kicad-mcp
   distDir: string;       // ~/.ai-eda/kicad-mcp/dist
   entryPoint: string;    // ~/.ai-eda/kicad-mcp/dist/index.js
+  venvDir: string;       // ~/.ai-eda/kicad-mcp/.venv
+  venvPython: string;    // ~/.ai-eda/kicad-mcp/.venv/bin/python
 }
 
 /**
@@ -29,53 +34,113 @@ export function getKicadMcpPaths(): KicadMcpPaths {
   const mcpDir = join(baseDir, KICAD_MCP_DIR_NAME);
   const distDir = join(mcpDir, 'dist');
   const entryPoint = join(distDir, 'index.js');
+  const venvDir = join(mcpDir, '.venv');
+  const isWindows = platform() === 'win32';
+  const venvPython = isWindows
+    ? join(venvDir, 'Scripts', 'python.exe')
+    : join(venvDir, 'bin', 'python');
 
-  return { baseDir, mcpDir, distDir, entryPoint };
+  return { baseDir, mcpDir, distDir, entryPoint, venvDir, venvPython };
+}
+
+/**
+ * Check if UV is installed
+ */
+export async function isUvInstalled(): Promise<boolean> {
+  try {
+    const { execSync } = await import('child_process');
+    execSync('uv --version', { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Check if the KiCad MCP server is installed and built
  */
-export function isKicadMcpInstalled(): { installed: boolean; built: boolean; paths: KicadMcpPaths } {
+export function isKicadMcpInstalled(): {
+  installed: boolean;
+  built: boolean;
+  hasVenv: boolean;
+  paths: KicadMcpPaths
+} {
   const paths = getKicadMcpPaths();
   const installed = existsSync(paths.mcpDir) && existsSync(join(paths.mcpDir, 'package.json'));
   const built = installed && existsSync(paths.entryPoint);
+  const hasVenv = existsSync(paths.venvPython);
 
-  return { installed, built, paths };
+  return { installed, built, hasVenv, paths };
 }
 
 /**
- * Check if Python dependencies are installed
+ * Check if Python dependencies are installed in the venv
  */
 export async function checkPythonDependencies(): Promise<{ installed: boolean; missing: string[] }> {
-  const requiredPackages = ['skip', 'PIL', 'cairosvg', 'pydantic'];
+  const { hasVenv, paths } = isKicadMcpInstalled();
+
+  if (!hasVenv) {
+    return { installed: false, missing: ['venv not created'] };
+  }
+
   const missing: string[] = [];
 
   try {
     const { execSync } = await import('child_process');
 
-    for (const pkg of requiredPackages) {
+    for (const pkg of PYTHON_DEPS) {
       try {
-        // Check if package can be imported
-        const importName = pkg === 'PIL' ? 'PIL' : pkg === 'skip' ? 'skip' : pkg;
-        execSync(`python3 -c "import ${importName}"`, { stdio: 'pipe' });
+        // Use uv pip show to check if package is installed in the venv
+        execSync(`uv pip show ${pkg} --python "${paths.venvPython}"`, {
+          stdio: 'pipe',
+          cwd: paths.mcpDir,
+        });
       } catch {
-        // Map import names back to pip package names
-        const pipName = pkg === 'PIL' ? 'Pillow' : pkg === 'skip' ? 'kicad-skip' : pkg;
-        missing.push(pipName);
+        missing.push(pkg);
       }
     }
 
     return { installed: missing.length === 0, missing };
   } catch {
-    return { installed: false, missing: ['python3 not found'] };
+    return { installed: false, missing: ['could not check venv'] };
   }
+}
+
+/**
+ * Install UV if not present (provides instructions)
+ */
+export async function ensureUvInstalled(options: { verbose?: boolean } = {}): Promise<boolean> {
+  if (await isUvInstalled()) {
+    return true;
+  }
+
+  console.log(chalk.yellow('\nUV is not installed. UV is required for Python dependency management.'));
+  console.log(chalk.dim('\nInstall UV with one of these methods:\n'));
+
+  const plat = platform();
+  if (plat === 'darwin' || plat === 'linux') {
+    console.log(chalk.cyan('  curl -LsSf https://astral.sh/uv/install.sh | sh'));
+    console.log(chalk.dim('  or'));
+    console.log(chalk.cyan('  brew install uv'));
+  } else if (plat === 'win32') {
+    console.log(chalk.cyan('  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"'));
+    console.log(chalk.dim('  or'));
+    console.log(chalk.cyan('  winget install astral-sh.uv'));
+  }
+
+  console.log(chalk.dim('\nThen run this command again.\n'));
+  return false;
 }
 
 /**
  * Install the KiCad MCP server from GitHub
  */
 export async function installKicadMcp(options: { verbose?: boolean } = {}): Promise<boolean> {
+  // Check UV first
+  if (!await ensureUvInstalled(options)) {
+    return false;
+  }
+
   const { execSync } = await import('child_process');
   const { paths } = isKicadMcpInstalled();
 
@@ -103,7 +168,7 @@ export async function installKicadMcp(options: { verbose?: boolean } = {}): Prom
     }
   } catch (error) {
     cloneSpinner.fail('Failed to clone repository');
-    console.error(chalk.red(`Error: ${error}`));
+    if (options.verbose) console.error(chalk.red(`Error: ${error}`));
     return false;
   }
 
@@ -117,7 +182,7 @@ export async function installKicadMcp(options: { verbose?: boolean } = {}): Prom
     npmSpinner.succeed('Installed npm dependencies');
   } catch (error) {
     npmSpinner.fail('Failed to install npm dependencies');
-    console.error(chalk.red(`Error: ${error}`));
+    if (options.verbose) console.error(chalk.red(`Error: ${error}`));
     return false;
   }
 
@@ -131,33 +196,51 @@ export async function installKicadMcp(options: { verbose?: boolean } = {}): Prom
     buildSpinner.succeed('Built KiCAD-MCP-Server');
   } catch (error) {
     buildSpinner.fail('Failed to build');
-    console.error(chalk.red(`Error: ${error}`));
+    if (options.verbose) console.error(chalk.red(`Error: ${error}`));
     return false;
   }
 
-  // Check and install Python dependencies
-  const pythonSpinner = ora('Checking Python dependencies...').start();
-  const { installed: pythonInstalled, missing } = await checkPythonDependencies();
-
-  if (!pythonInstalled) {
-    pythonSpinner.text = 'Installing Python dependencies...';
-    try {
-      const pipPackages = missing.join(' ');
-      execSync(`pip install ${pipPackages}`, {
+  // Create venv with UV
+  const venvSpinner = ora('Creating Python virtual environment...').start();
+  try {
+    // Create venv if it doesn't exist
+    if (!existsSync(paths.venvDir)) {
+      execSync('uv venv .venv', {
+        cwd: paths.mcpDir,
         stdio: options.verbose ? 'inherit' : 'pipe',
       });
-      pythonSpinner.succeed('Installed Python dependencies');
-    } catch (error) {
-      pythonSpinner.warn(`Some Python dependencies may need manual installation: ${missing.join(', ')}`);
     }
-  } else {
-    pythonSpinner.succeed('Python dependencies already installed');
+    venvSpinner.succeed('Created Python virtual environment');
+  } catch (error) {
+    venvSpinner.fail('Failed to create venv');
+    if (options.verbose) console.error(chalk.red(`Error: ${error}`));
+    return false;
+  }
+
+  // Install Python dependencies with UV
+  const pythonSpinner = ora('Installing Python dependencies...').start();
+  try {
+    const depsStr = PYTHON_DEPS.join(' ');
+    execSync(`uv pip install ${depsStr}`, {
+      cwd: paths.mcpDir,
+      stdio: options.verbose ? 'inherit' : 'pipe',
+      env: {
+        ...process.env,
+        VIRTUAL_ENV: paths.venvDir,
+      },
+    });
+    pythonSpinner.succeed('Installed Python dependencies');
+  } catch (error) {
+    pythonSpinner.fail('Failed to install Python dependencies');
+    if (options.verbose) console.error(chalk.red(`Error: ${error}`));
+    return false;
   }
 
   console.log('');
   console.log(chalk.green.bold('✓ KiCAD-MCP-Server installed successfully'));
   console.log(chalk.dim(`  Location: ${paths.mcpDir}`));
   console.log(chalk.dim(`  Entry point: ${paths.entryPoint}`));
+  console.log(chalk.dim(`  Python venv: ${paths.venvDir}`));
   console.log('');
 
   return true;
@@ -167,19 +250,37 @@ export async function installKicadMcp(options: { verbose?: boolean } = {}): Prom
  * Get the MCP configuration for the KiCad server
  */
 export function getKicadMcpConfig(): { command: string; args: string[]; env: Record<string, string> } | null {
-  const { built, paths } = isKicadMcpInstalled();
+  const { built, hasVenv, paths } = isKicadMcpInstalled();
 
   if (!built) {
     return null;
   }
 
-  return {
+  const config: { command: string; args: string[]; env: Record<string, string> } = {
     command: 'node',
     args: [paths.entryPoint],
     env: {
       KICAD_PROJECT_DIR: './hardware',
     },
   };
+
+  // Add venv Python path if available
+  if (hasVenv) {
+    config.env.PYTHON_PATH = paths.venvPython;
+    config.env.VIRTUAL_ENV = paths.venvDir;
+  }
+
+  // On macOS, add homebrew lib path for cairo and other system libraries
+  const plat = platform();
+  if (plat === 'darwin') {
+    // Check for Apple Silicon vs Intel
+    const homebrewLib = existsSync('/opt/homebrew/lib')
+      ? '/opt/homebrew/lib'
+      : '/usr/local/lib';
+    config.env.DYLD_LIBRARY_PATH = homebrewLib;
+  }
+
+  return config;
 }
 
 /**
@@ -278,20 +379,25 @@ export async function kicadMcpCommand(options: {
 }): Promise<void> {
   console.log(chalk.bold('\nKiCad MCP Server Management\n'));
 
-  const { installed, built, paths } = isKicadMcpInstalled();
+  const { installed, built, hasVenv, paths } = isKicadMcpInstalled();
+  const hasUv = await isUvInstalled();
 
   // Status check (default action)
   if (options.status || (!options.install && !options.update && !options.configureGlobal)) {
+    console.log(`${chalk.dim('UV Installed:')} ${hasUv ? chalk.green('Yes') : chalk.red('No')}`);
     console.log(`${chalk.dim('Installation Path:')} ${paths.mcpDir}`);
-    console.log(`${chalk.dim('Installed:')} ${installed ? chalk.green('Yes') : chalk.red('No')}`);
+    console.log(`${chalk.dim('Cloned:')} ${installed ? chalk.green('Yes') : chalk.red('No')}`);
     console.log(`${chalk.dim('Built:')} ${built ? chalk.green('Yes') : chalk.red('No')}`);
+    console.log(`${chalk.dim('Python Venv:')} ${hasVenv ? chalk.green('Yes') : chalk.red('No')}`);
 
     if (built) {
       console.log(`${chalk.dim('Entry Point:')} ${paths.entryPoint}`);
     }
 
-    const { installed: pythonOk, missing } = await checkPythonDependencies();
-    console.log(`${chalk.dim('Python Deps:')} ${pythonOk ? chalk.green('OK') : chalk.yellow(`Missing: ${missing.join(', ')}`)}`);
+    if (hasVenv) {
+      const { installed: depsOk, missing } = await checkPythonDependencies();
+      console.log(`${chalk.dim('Python Deps:')} ${depsOk ? chalk.green('OK') : chalk.yellow(`Missing: ${missing.join(', ')}`)}`);
+    }
 
     // Check global config
     const globalConfigPath = getGlobalClaudeConfigPath();
@@ -300,7 +406,11 @@ export async function kicadMcpCommand(options: {
 
     console.log('');
 
-    if (!built) {
+    if (!hasUv) {
+      console.log(chalk.yellow('UV is required. Install it first:'));
+      console.log(chalk.cyan('  curl -LsSf https://astral.sh/uv/install.sh | sh'));
+      console.log('');
+    } else if (!built || !hasVenv) {
       console.log(chalk.yellow('To install, run:'));
       console.log(chalk.cyan('  ai-eda kicad-mcp --install'));
       console.log('');

@@ -2,61 +2,27 @@
  * Doctor command - Check environment setup
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
-import { homedir, platform } from 'os';
 import chalk from 'chalk';
 import {
   isKicadMcpInstalled,
-  checkPythonDependencies,
   installKicadMcp,
   configureGlobalMcp,
-  getKicadMcpPaths,
+  isUvInstalled,
 } from './kicad-mcp.js';
+import {
+  checkKiCad,
+  checkKicadIpc,
+  checkUv,
+  checkKicadMcp,
+  checkNode,
+  CheckResult,
+  getKicadConfigDir,
+  checkKicadIpcEnabled,
+} from '../utils/env-checks.js';
 
-interface CheckResult {
-  name: string;
-  status: 'pass' | 'warn' | 'fail';
-  message: string;
-}
-
-/**
- * Get the KiCad configuration directory based on platform
- */
-export function getKicadConfigDir(version: string = '9.0'): string {
-  const home = homedir();
-  const plat = platform();
-
-  if (plat === 'darwin') {
-    return join(home, 'Library', 'Preferences', 'kicad', version);
-  } else if (plat === 'win32') {
-    return join(process.env.APPDATA || join(home, 'AppData', 'Roaming'), 'kicad', version);
-  } else {
-    // Linux and others
-    return join(home, '.config', 'kicad', version);
-  }
-}
-
-/**
- * Check if KiCad IPC API is enabled
- */
-export function checkKicadIpcEnabled(version: string = '9.0'): { enabled: boolean; configPath: string; exists: boolean } {
-  const configDir = getKicadConfigDir(version);
-  const configPath = join(configDir, 'kicad_common.json');
-
-  if (!existsSync(configPath)) {
-    return { enabled: false, configPath, exists: false };
-  }
-
-  try {
-    const content = readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(content);
-    const enabled = config?.api?.enable_server === true;
-    return { enabled, configPath, exists: true };
-  } catch {
-    return { enabled: false, configPath, exists: true };
-  }
-}
+export { getKicadConfigDir, checkKicadIpcEnabled };
 
 export interface DoctorOptions {
   fix?: boolean;
@@ -68,26 +34,12 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
 
   const results: CheckResult[] = [];
 
-  // Check KiCad
+  // Run all checks
   results.push(await checkKiCad());
-
-  // Check KiCad IPC API
   results.push(checkKicadIpc());
-
-  // Check KiCad MCP Server
-  const mcpResult = await checkKicadMcp();
-  results.push(mcpResult);
-
-  // Check Python dependencies for KiCad MCP
-  results.push(await checkKicadMcpPython());
-
-  // Check Bun
-  results.push(await checkBun());
-
-  // Check Node/npm (for npx)
+  results.push(await checkUv());
+  results.push(await checkKicadMcp());
   results.push(await checkNode());
-
-  // Check current project structure
   results.push(checkProjectStructure());
 
   // Print results
@@ -126,12 +78,21 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
 
   // Handle --fix option
   if (options.fix) {
-    const needsMcpInstall = mcpResult.status !== 'pass';
+    const hasUv = await isUvInstalled();
+    const { built, hasVenv } = isKicadMcpInstalled();
+    const needsFix = !built || !hasVenv;
 
-    if (needsMcpInstall) {
+    if (!hasUv) {
+      console.log(chalk.yellow.bold('UV is required for --fix to work.\n'));
+      console.log('Install UV first:');
+      console.log(chalk.cyan('  curl -LsSf https://astral.sh/uv/install.sh | sh'));
+      console.log('');
+      return;
+    }
+
+    if (needsFix) {
       console.log(chalk.bold('Attempting to fix issues...\n'));
 
-      console.log(chalk.cyan('Installing KiCad MCP Server...'));
       const success = await installKicadMcp({ verbose: options.verbose });
 
       if (success) {
@@ -144,184 +105,13 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
       console.log(chalk.dim('No automatic fixes needed.'));
     }
     console.log('');
-  } else if (mcpResult.status !== 'pass') {
-    console.log(chalk.dim('Run with --fix to automatically install missing components:'));
-    console.log(chalk.cyan('  ai-eda doctor --fix'));
-    console.log('');
-  }
-}
-
-async function checkKicadMcp(): Promise<CheckResult> {
-  const { installed, built, paths } = isKicadMcpInstalled();
-
-  if (built) {
-    return {
-      name: 'KiCad MCP Server',
-      status: 'pass',
-      message: `Installed at ${paths.mcpDir}`,
-    };
-  }
-
-  if (installed) {
-    return {
-      name: 'KiCad MCP Server',
-      status: 'warn',
-      message: 'Installed but not built. Run "ai-eda doctor --fix" to rebuild.',
-    };
-  }
-
-  return {
-    name: 'KiCad MCP Server',
-    status: 'warn',
-    message: 'Not installed. Run "ai-eda doctor --fix" to install.',
-  };
-}
-
-async function checkKicadMcpPython(): Promise<CheckResult> {
-  const { installed, missing } = await checkPythonDependencies();
-
-  if (installed) {
-    return {
-      name: 'KiCad MCP Python Deps',
-      status: 'pass',
-      message: 'kicad-skip, Pillow, cairosvg, pydantic installed',
-    };
-  }
-
-  return {
-    name: 'KiCad MCP Python Deps',
-    status: 'warn',
-    message: `Missing: ${missing.join(', ')}. Run "ai-eda doctor --fix" to install.`,
-  };
-}
-
-function checkKicadIpc(): CheckResult {
-  // Try multiple KiCad versions
-  const versions = ['9.0', '8.0', '8.99'];
-
-  for (const version of versions) {
-    const { enabled, configPath, exists } = checkKicadIpcEnabled(version);
-
-    if (exists) {
-      if (enabled) {
-        return {
-          name: 'KiCad IPC API',
-          status: 'pass',
-          message: `Enabled (KiCad ${version})`,
-        };
-      } else {
-        return {
-          name: 'KiCad IPC API',
-          status: 'warn',
-          message: `Disabled. Run "ai-eda kicad-ipc enable" to enable real-time control.`,
-        };
-      }
+  } else if (warnings.length > 0 || failures.length > 0) {
+    const { built, hasVenv } = isKicadMcpInstalled();
+    if (!built || !hasVenv) {
+      console.log(chalk.dim('Run with --fix to automatically install missing components:'));
+      console.log(chalk.cyan('  ai-eda doctor --fix'));
+      console.log('');
     }
-  }
-
-  return {
-    name: 'KiCad IPC API',
-    status: 'warn',
-    message: 'KiCad config not found. Install KiCad 9.0+ for IPC API support.',
-  };
-}
-
-async function checkKiCad(): Promise<CheckResult> {
-  try {
-    const { execSync } = await import('child_process');
-
-    // Try to find kicad-cli
-    const paths = [
-      '/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli',
-      '/usr/bin/kicad-cli',
-      '/usr/local/bin/kicad-cli',
-      'C:\\Program Files\\KiCad\\bin\\kicad-cli.exe',
-    ];
-
-    for (const p of paths) {
-      if (existsSync(p)) {
-        try {
-          const version = execSync(`"${p}" --version`, { encoding: 'utf-8' }).trim();
-          return {
-            name: 'KiCad',
-            status: 'pass',
-            message: `Found at ${p} (${version})`,
-          };
-        } catch {
-          continue;
-        }
-      }
-    }
-
-    // Try PATH
-    try {
-      const version = execSync('kicad-cli --version', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-      return {
-        name: 'KiCad',
-        status: 'pass',
-        message: `Found in PATH (${version})`,
-      };
-    } catch {
-      // Not found
-    }
-
-    return {
-      name: 'KiCad',
-      status: 'warn',
-      message: 'Not found. Install KiCad 8.0+ for full functionality.',
-    };
-  } catch {
-    return {
-      name: 'KiCad',
-      status: 'warn',
-      message: 'Could not check. Install KiCad 8.0+ for full functionality.',
-    };
-  }
-}
-
-async function checkBun(): Promise<CheckResult> {
-  try {
-    const { execSync } = await import('child_process');
-    const version = execSync('bun --version', { encoding: 'utf-8' }).trim();
-    return {
-      name: 'Bun',
-      status: 'pass',
-      message: `v${version}`,
-    };
-  } catch {
-    return {
-      name: 'Bun',
-      status: 'warn',
-      message: 'Not found. Bun is recommended but not required.',
-    };
-  }
-}
-
-async function checkNode(): Promise<CheckResult> {
-  try {
-    const { execSync } = await import('child_process');
-    const version = execSync('node --version', { encoding: 'utf-8' }).trim();
-    const major = parseInt(version.replace('v', '').split('.')[0]);
-
-    if (major >= 18) {
-      return {
-        name: 'Node.js',
-        status: 'pass',
-        message: version,
-      };
-    } else {
-      return {
-        name: 'Node.js',
-        status: 'warn',
-        message: `${version} (v18+ recommended)`,
-      };
-    }
-  } catch {
-    return {
-      name: 'Node.js',
-      status: 'fail',
-      message: 'Not found. Node.js 18+ is required.',
-    };
   }
 }
 
@@ -343,7 +133,7 @@ function checkProjectStructure(): CheckResult {
       return {
         name: 'Project Structure',
         status: 'warn',
-        message: 'Partial project structure. Run "ai-eda init" to create a new project.',
+        message: 'Partial project structure',
       };
     }
   }
@@ -351,6 +141,6 @@ function checkProjectStructure(): CheckResult {
   return {
     name: 'Project Structure',
     status: 'warn',
-    message: 'Not in an AI-EDA project. Use "ai-eda init <name>" to create one.',
+    message: 'Not in an AI-EDA project. Use "ai-eda init" to create one.',
   };
 }

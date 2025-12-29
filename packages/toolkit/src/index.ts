@@ -17,16 +17,14 @@ program
 
 program
   .command('init')
-  .description('Initialize a new EDA project')
-  .argument('<name>', 'Project name')
-  .option('-t, --template <type>', 'Project template (basic|advanced)', 'basic')
+  .description('Initialize a new EDA project (interactive)')
+  .argument('[name]', 'Project name (prompted if not provided)')
   .option('--no-git', 'Skip git initialization')
-  .option('-l, --layers <count>', 'Default layer count', '2')
+  .option('-y, --yes', 'Use defaults, no prompts (requires name argument)')
   .action(async (name, options) => {
     await initCommand(name, {
-      template: options.template as 'basic' | 'advanced',
       noGit: !options.git,
-      layers: parseInt(options.layers),
+      yes: options.yes,
     });
   });
 
