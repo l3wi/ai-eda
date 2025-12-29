@@ -89,10 +89,10 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   if (updateAll || options.mcp) {
     const spinner = ora('Updating .mcp.json...').start();
     if (configureMcpJson(projectDir)) {
-      spinner.succeed('Updated .mcp.json with kicad-pcb and kicad-sch servers');
+      spinner.succeed('Updated .mcp.json with jlc, kicad-pcb, and kicad-sch servers');
       updated += 1;
     } else {
-      spinner.warn('Could not update .mcp.json (MCP servers not installed)');
+      spinner.warn('Could not update .mcp.json');
     }
   }
 

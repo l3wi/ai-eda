@@ -153,17 +153,27 @@ export function getKicadMcpConfig(): { command: string; args: string[]; env?: Re
 }
 
 /**
- * Update or create .mcp.json with KiCad MCP configuration
+ * Get the MCP configuration for the JLC server
+ */
+export function getJlcMcpConfig(): { command: string; args: string[]; env: Record<string, string> } {
+  return {
+    command: 'npx',
+    args: ['-y', '@ai-eda/jlc-mcp@latest'],
+    env: {
+      JLC_CACHE_DIR: './.cache/jlc',
+      EASYEDA_OUTPUT_DIR: './libraries',
+    },
+  };
+}
+
+/**
+ * Update or create .mcp.json with MCP configuration
  */
 export function configureMcpJson(projectDir: string): boolean {
   const mcpJsonPath = join(projectDir, '.mcp.json');
   const pcbConfig = getKicadMcpConfig();
   const schConfig = getKicadSchMcpConfig();
-
-  if (!pcbConfig && !schConfig) {
-    console.error(chalk.red('No KiCad MCP servers installed. Run "ai-eda doctor --fix" first.'));
-    return false;
-  }
+  const jlcConfig = getJlcMcpConfig();
 
   let mcpConfig: Record<string, unknown> = { mcpServers: {} };
 
@@ -188,12 +198,20 @@ export function configureMcpJson(projectDir: string): boolean {
     delete servers.kicad;
   }
 
-  // Update KiCad PCB configuration
+  // Remove old 'lcsc' key if it exists (renamed to 'jlc')
+  if ('lcsc' in servers) {
+    delete servers.lcsc;
+  }
+
+  // Update JLC configuration (always available via npx)
+  servers['jlc'] = jlcConfig;
+
+  // Update KiCad PCB configuration (if installed)
   if (pcbConfig) {
     servers['kicad-pcb'] = pcbConfig;
   }
 
-  // Update KiCad Schematic configuration
+  // Update KiCad Schematic configuration (if installed)
   if (schConfig) {
     servers['kicad-sch'] = schConfig;
   }
@@ -212,17 +230,14 @@ export function getGlobalClaudeConfigPath(): string {
 }
 
 /**
- * Configure KiCad MCP in global Claude config
+ * Configure MCP servers in global Claude config
  */
 export function configureGlobalMcp(): boolean {
   const globalConfigPath = getGlobalClaudeConfigPath();
   const globalConfigDir = join(homedir(), '.claude');
   const pcbConfig = getKicadMcpConfig();
   const schConfig = getKicadSchMcpConfig();
-
-  if (!pcbConfig && !schConfig) {
-    return false;
-  }
+  const jlcConfig = getJlcMcpConfig();
 
   // Ensure .claude directory exists
   if (!existsSync(globalConfigDir)) {
@@ -251,12 +266,20 @@ export function configureGlobalMcp(): boolean {
     delete servers.kicad;
   }
 
-  // Update KiCad PCB configuration
+  // Remove old 'lcsc' key if it exists (renamed to 'jlc')
+  if ('lcsc' in servers) {
+    delete servers.lcsc;
+  }
+
+  // Update JLC configuration (always available via npx)
+  servers['jlc'] = jlcConfig;
+
+  // Update KiCad PCB configuration (if installed)
   if (pcbConfig) {
     servers['kicad-pcb'] = pcbConfig;
   }
 
-  // Update KiCad Schematic configuration
+  // Update KiCad Schematic configuration (if installed)
   if (schConfig) {
     servers['kicad-sch'] = schConfig;
   }
