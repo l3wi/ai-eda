@@ -51,4 +51,10 @@ export interface ComponentSearchResult {
   price?: number;
   stock: number;
   description: string;
+  datasheet?: string;
+  category?: string;
+  /** JLCPCB assembly type: "basic" = no setup fee, "extended" = setup fee required */
+  libraryType?: 'basic' | 'extended';
+  /** Component specifications (e.g., "Output Voltage": "3.3V", "Output Current": "100mA") */
+  attributes?: Record<string, string>;
 }

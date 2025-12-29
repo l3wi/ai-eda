@@ -1,79 +1,51 @@
 /**
  * LCSC API client for component search and details
+ * Uses JLCPCB's parts library API which provides LCSC component data
  */
 
 import type { LCSCSearchOptions, ComponentSearchResult } from '@ai-eda/common';
 import { createLogger } from '@ai-eda/common';
-import { execSync } from 'child_process';
 
 const logger = createLogger('lcsc-api');
 
-const LCSC_SEARCH_API = 'https://wmsc.lcsc.com/ftms/query/product/search';
+// JLCPCB parts API - provides LCSC component data with better reliability
+const JLCPCB_SEARCH_API =
+  'https://jlcpcb.com/api/overseas-pcb-order/v1/shoppingCart/smtGood/selectSmtComponentList/v2';
 
 /**
- * Fetch URL using curl as fallback when Node fetch fails (e.g., proxy issues)
+ * JLCPCB component structure from API response
  */
-async function fetchWithCurlFallback(
-  url: string,
-  options: { method?: string; body?: string; headers?: Record<string, string> } = {}
-): Promise<string> {
-  const { method = 'GET', body, headers = {} } = options;
+interface JLCPCBComponent {
+  componentCode: string; // LCSC part number (e.g., "C82899")
+  componentModelEn: string; // Part model (e.g., "ESP32-WROOM-32-N4")
+  componentBrandEn: string; // Manufacturer
+  componentSpecificationEn: string; // Package type
+  stockCount: number;
+  componentPrices: Array<{
+    startNumber: number;
+    endNumber: number;
+    productPrice: number;
+  }>;
+  describe: string;
+  dataManualUrl?: string;
+  lcscGoodsUrl?: string;
+  componentTypeEn?: string;
+  componentLibraryType?: string; // "base" = basic part (no setup fee), "expand" = extended (setup fee required)
+  attributes?: Array<{
+    attribute_name_en: string;
+    attribute_value_name: string;
+  }>;
+}
 
-  // Try native fetch first
-  try {
-    const fetchOptions: RequestInit = {
-      method,
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'ai-eda-lcsc-mcp/1.0.0',
-        ...headers,
-      },
+interface JLCPCBSearchResponse {
+  code: number;
+  data: {
+    componentPageInfo: {
+      total: number;
+      list: JLCPCBComponent[] | null;
     };
-
-    if (body) {
-      fetchOptions.body = body;
-    }
-
-    const response = await fetch(url, fetchOptions);
-
-    if (response.ok) {
-      return await response.text();
-    }
-  } catch (error) {
-    logger.debug(`Native fetch failed, falling back to curl: ${error}`);
-  }
-
-  // Fallback to curl
-  try {
-    const curlArgs: string[] = ['curl', '-s'];
-
-    if (method !== 'GET') {
-      curlArgs.push('-X', method);
-    }
-
-    // Add headers
-    curlArgs.push('-H', '"Accept: application/json"');
-    curlArgs.push('-H', '"User-Agent: ai-eda-lcsc-mcp/1.0.0"');
-    for (const [key, value] of Object.entries(headers)) {
-      curlArgs.push('-H', `"${key}: ${value}"`);
-    }
-
-    // Add body for POST requests
-    if (body) {
-      curlArgs.push('-d', `'${body}'`);
-    }
-
-    curlArgs.push(`"${url}"`);
-
-    const result = execSync(curlArgs.join(' '), {
-      encoding: 'utf-8',
-      maxBuffer: 10 * 1024 * 1024,
-    });
-
-    return result;
-  } catch (error) {
-    throw new Error(`Both fetch and curl failed for URL: ${url}`);
-  }
+  };
+  message: string | null;
 }
 
 export interface LCSCProduct {
@@ -91,46 +63,74 @@ export interface LCSCProduct {
 }
 
 export class LCSCClient {
-  private userAgent = 'ai-eda-lcsc-mcp/1.0.0';
-
   /**
-   * Search for components on LCSC
+   * Search for components on LCSC via JLCPCB API
    */
   async search(
     query: string,
     options: LCSCSearchOptions = {}
   ): Promise<ComponentSearchResult[]> {
-    const { limit = 10, page = 1, inStock } = options;
+    const { limit = 10, page = 1 } = options;
 
-    logger.debug(`Searching LCSC for: ${query}`);
+    logger.debug(`Searching LCSC (via JLCPCB) for: ${query}`);
 
     const body = JSON.stringify({
-      keyword: query,
-      pageNumber: page,
+      currentPage: page,
       pageSize: Math.min(limit, 50),
-      stockFlag: inStock ? true : undefined,
+      keyword: query,
     });
 
-    const responseText = await fetchWithCurlFallback(LCSC_SEARCH_API, {
-      method: 'POST',
-      body,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    try {
+      const response = await fetch(JLCPCB_SEARCH_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body,
+      });
 
-    const data = JSON.parse(responseText);
-    const products: LCSCProduct[] = data.result?.productList || [];
+      if (!response.ok) {
+        throw new Error(`JLCPCB API returned ${response.status}`);
+      }
 
-    return products.map((p) => ({
-      lcscId: p.productCode,
-      name: p.productModel,
-      manufacturer: p.brandNameEn,
-      package: p.encapStandard,
-      price: p.productPriceList?.[0]?.productPrice,
-      stock: p.stockNumber,
-      description: p.productIntroEn,
-    }));
+      const data: JLCPCBSearchResponse = await response.json();
+
+      if (data.code !== 200) {
+        throw new Error(`JLCPCB API error: ${data.message || 'Unknown error'}`);
+      }
+
+      const components = data.data?.componentPageInfo?.list || [];
+
+      logger.debug(`Found ${components.length} components`);
+
+      return components.map((c) => ({
+        lcscId: c.componentCode,
+        name: c.componentModelEn,
+        manufacturer: c.componentBrandEn,
+        package: c.componentSpecificationEn || '',
+        price: c.componentPrices?.[0]?.productPrice,
+        stock: c.stockCount,
+        description: c.describe,
+        datasheet: c.dataManualUrl,
+        category: c.componentTypeEn,
+        // JLCPCB assembly part type: "basic" = no setup fee, "extended" = setup fee required
+        libraryType: c.componentLibraryType === 'base' ? 'basic' : 'extended',
+        // Component specifications as key-value pairs
+        attributes: c.attributes?.reduce(
+          (acc, attr) => {
+            if (attr.attribute_value_name && attr.attribute_value_name !== '-') {
+              acc[attr.attribute_name_en] = attr.attribute_value_name;
+            }
+            return acc;
+          },
+          {} as Record<string, string>
+        ),
+      }));
+    } catch (error) {
+      logger.error(`Search failed: ${error}`);
+      throw error;
+    }
   }
 
   /**
