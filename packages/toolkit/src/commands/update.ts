@@ -34,7 +34,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   const templatesDir = getTemplatesDir();
   if (!templatesDir) {
     console.error(chalk.red('Error: Could not find templates directory'));
-    console.error('Make sure @ai-eda/toolkit is installed correctly');
+    console.error('Make sure ai-eda is installed correctly');
     process.exit(1);
   }
 

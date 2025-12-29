@@ -3,8 +3,8 @@
  * Converts EasyEDA symbol format to KiCad .kicad_sym format (KiCad 9 compatible)
  */
 
-import type { EasyEDAComponentData, EasyEDAPin } from '@ai-eda/common';
-import { KICAD_SYMBOL_VERSION, KICAD_DEFAULTS, roundTo } from '@ai-eda/common';
+import type { EasyEDAComponentData, EasyEDAPin } from 'ai-eda-common';
+import { KICAD_SYMBOL_VERSION, KICAD_DEFAULTS, roundTo } from 'ai-eda-common';
 
 // EasyEDA uses 10mil units (0.254mm per unit)
 const EE_TO_MM = 0.254;

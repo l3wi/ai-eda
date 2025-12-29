@@ -1,10 +1,10 @@
 {
-  "name": "@ai-eda/jlc-mcp",
+  "name": "jlc-mcp",
   "version": "0.1.0",
   "type": "module",
   "description": "MCP server for JLC/EasyEDA component sourcing, library fetching, and conversion to KiCad format",
   "bin": {
-    "ai-eda-jlc-mcp": "./dist/index.js"
+    "jlc-mcp": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -29,7 +29,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@ai-eda/common": "workspace:*",
+    "ai-eda-common": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^3.22.0"
   },

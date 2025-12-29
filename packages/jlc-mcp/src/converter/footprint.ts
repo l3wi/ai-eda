@@ -4,8 +4,8 @@
  */
 
 import { randomUUID } from 'crypto';
-import type { EasyEDAComponentData, EasyEDAPad } from '@ai-eda/common';
-import { KICAD_FOOTPRINT_VERSION, KICAD_DEFAULTS, KICAD_LAYERS, roundTo } from '@ai-eda/common';
+import type { EasyEDAComponentData, EasyEDAPad } from 'ai-eda-common';
+import { KICAD_FOOTPRINT_VERSION, KICAD_DEFAULTS, KICAD_LAYERS, roundTo } from 'ai-eda-common';
 
 // EasyEDA uses 10mil units
 const EE_TO_MM = 0.254;

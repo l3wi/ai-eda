@@ -1,5 +1,5 @@
 /**
- * @ai-eda/common constants
+ * ai-eda-common constants
  */
 
 export * from './kicad.js';

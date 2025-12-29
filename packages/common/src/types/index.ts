@@ -1,5 +1,5 @@
 /**
- * @ai-eda/common types
+ * ai-eda-common types
  * Shared types for the AI-EDA toolkit
  */
 

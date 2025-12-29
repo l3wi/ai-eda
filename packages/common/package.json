@@ -1,5 +1,5 @@
 {
-  "name": "@ai-eda/common",
+  "name": "ai-eda-common",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",

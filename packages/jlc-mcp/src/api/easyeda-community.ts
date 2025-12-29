@@ -9,8 +9,8 @@ import type {
   EasyEDACommunityComponent,
   EasyEDACommunityPin,
   EasyEDACommunityPad,
-} from '@ai-eda/common'
-import { createLogger } from '@ai-eda/common'
+} from 'ai-eda-common'
+import { createLogger } from 'ai-eda-common'
 import { execSync } from 'child_process'
 
 const logger = createLogger('easyeda-community-api')

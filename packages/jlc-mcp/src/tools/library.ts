@@ -22,7 +22,7 @@ import {
   getSymbolReference,
   getFootprintReference,
 } from '../converter/lib-table.js';
-import { ensureDir, writeText, writeBinary } from '@ai-eda/common';
+import { ensureDir, writeText, writeBinary } from 'ai-eda-common';
 import { join } from 'path';
 
 // Library naming - matches kicad-skip search pattern

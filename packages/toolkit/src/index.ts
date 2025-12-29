@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * @ai-eda/toolkit
+ * ai-eda
  * CLI for AI-assisted EDA project initialization and management
  */
 

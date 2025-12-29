@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * @ai-eda/jlc-mcp
+ * jlc-mcp
  * MCP server for JLC/EasyEDA component sourcing and library conversion
  */
 
@@ -13,14 +13,14 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { tools, toolHandlers } from './tools/index.js';
-import { createLogger } from '@ai-eda/common';
+import { createLogger } from 'ai-eda-common';
 
 const logger = createLogger('jlc-mcp');
 
 // Create MCP server
 const server = new Server(
   {
-    name: '@ai-eda/jlc-mcp',
+    name: 'jlc-mcp',
     version: '0.1.0',
   },
   {

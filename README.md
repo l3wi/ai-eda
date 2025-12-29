@@ -1,4 +1,4 @@
-# @ai-eda Monorepo
+# AI-EDA Monorepo
 
 AI-assisted Electronic Design Automation toolkit for KiCad and Claude Code.
 
@@ -6,17 +6,16 @@ AI-assisted Electronic Design Automation toolkit for KiCad and Claude Code.
 
 | Package | Description |
 |---------|-------------|
-| [@ai-eda/common](./packages/common) | Shared types, utilities, and constants |
-| [@ai-eda/jlc-mcp](./packages/jlc-mcp) | MCP server for JLC/EasyEDA component sourcing |
-| [@ai-eda/kicad-mcp](./packages/kicad-mcp) | MCP server for KiCad automation |
-| [@ai-eda/toolkit](./packages/toolkit) | CLI for project initialization |
+| [ai-eda-common](./packages/common) | Shared types, utilities, and constants |
+| [jlc-mcp](./packages/jlc-mcp) | MCP server for JLC/EasyEDA component sourcing |
+| [ai-eda](./packages/toolkit) | CLI for project initialization |
 
 ## Quick Start
 
 ### Initialize a New Project
 
 ```bash
-npx @ai-eda/toolkit init my-project
+npx ai-eda init my-project
 cd my-project
 ```
 

@@ -1,5 +1,5 @@
 /**
- * @ai-eda/common utilities
+ * ai-eda-common utilities
  */
 
 export * from './conversion.js';

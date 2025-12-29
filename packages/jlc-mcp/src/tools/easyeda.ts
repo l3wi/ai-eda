@@ -10,8 +10,8 @@ import type {
   EasyEDACommunityPin,
   EasyEDACommunityPad,
   EasyEDAComponentData,
-} from '@ai-eda/common'
-import { ensureDir, writeText, writeBinary } from '@ai-eda/common'
+} from 'ai-eda-common'
+import { ensureDir, writeText, writeBinary } from 'ai-eda-common'
 import { easyedaCommunityClient } from '../api/easyeda-community.js'
 import { symbolConverter } from '../converter/symbol.js'
 import { footprintConverter } from '../converter/footprint.js'

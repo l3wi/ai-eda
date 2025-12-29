@@ -158,7 +158,7 @@ export function getKicadMcpConfig(): { command: string; args: string[]; env?: Re
 export function getJlcMcpConfig(): { command: string; args: string[]; env: Record<string, string> } {
   return {
     command: 'npx',
-    args: ['-y', '@ai-eda/jlc-mcp@latest'],
+    args: ['-y', 'jlc-mcp@latest'],
     env: {
       JLC_CACHE_DIR: './.cache/jlc',
       EASYEDA_OUTPUT_DIR: './libraries',

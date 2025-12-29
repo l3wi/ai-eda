@@ -12,21 +12,21 @@
       },
     },
     "packages/common": {
-      "name": "@ai-eda/common",
+      "name": "ai-eda-common",
       "version": "0.1.0",
       "dependencies": {
         "zod": "^3.22.0",
       },
     },
     "packages/jlc-mcp": {
-      "name": "@ai-eda/jlc-mcp",
+      "name": "jlc-mcp",
       "version": "0.1.0",
       "bin": {
-        "ai-eda-jlc-mcp": "./dist/index.js",
+        "jlc-mcp": "./dist/index.js",
       },
       "dependencies": {
-        "@ai-eda/common": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.0.0",
+        "ai-eda-common": "workspace:*",
         "zod": "^3.22.0",
       },
       "devDependencies": {
@@ -34,15 +34,14 @@
       },
     },
     "packages/toolkit": {
-      "name": "@ai-eda/toolkit",
+      "name": "ai-eda",
       "version": "0.1.0",
       "bin": {
         "ai-eda": "./dist/index.js",
-        "ai-eda-toolkit": "./dist/index.js",
       },
       "dependencies": {
-        "@ai-eda/common": "workspace:*",
         "@clack/prompts": "^0.9.1",
+        "ai-eda-common": "workspace:*",
         "chalk": "^5.3.0",
         "commander": "^12.0.0",
         "ora": "^8.0.0",
@@ -53,12 +52,6 @@
     },
   },
   "packages": {
-    "@ai-eda/common": ["@ai-eda/common@workspace:packages/common"],
-
-    "@ai-eda/jlc-mcp": ["@ai-eda/jlc-mcp@workspace:packages/jlc-mcp"],
-
-    "@ai-eda/toolkit": ["@ai-eda/toolkit@workspace:packages/toolkit"],
-
     "@babel/runtime": ["@babel/runtime@7.28.4", "", {}, "sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ=="],
 
     "@changesets/apply-release-plan": ["@changesets/apply-release-plan@7.0.14", "", { "dependencies": { "@changesets/config": "^3.1.2", "@changesets/get-version-range-type": "^0.4.0", "@changesets/git": "^3.0.4", "@changesets/should-skip-package": "^0.1.2", "@changesets/types": "^6.1.0", "@manypkg/get-packages": "^1.1.3", "detect-indent": "^6.0.0", "fs-extra": "^7.0.1", "lodash.startcase": "^4.4.0", "outdent": "^0.5.0", "prettier": "^2.7.1", "resolve-from": "^5.0.0", "semver": "^7.5.3" } }, "sha512-ddBvf9PHdy2YY0OUiEl3TV78mH9sckndJR14QAt87KLEbIov81XO0q0QAmvooBxXlqRRP8I9B7XOzZwQG7JkWA=="],
@@ -140,6 +133,10 @@
     "acorn": ["acorn@8.15.0", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg=="],
 
     "acorn-jsx": ["acorn-jsx@5.3.2", "", { "peerDependencies": { "acorn": "^6.0.0 || ^7.0.0 || ^8.0.0" } }, "sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ=="],
+
+    "ai-eda": ["ai-eda@workspace:packages/toolkit"],
+
+    "ai-eda-common": ["ai-eda-common@workspace:packages/common"],
 
     "ajv": ["ajv@6.12.6", "", { "dependencies": { "fast-deep-equal": "^3.1.1", "fast-json-stable-stringify": "^2.0.0", "json-schema-traverse": "^0.4.1", "uri-js": "^4.2.2" } }, "sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g=="],
 
@@ -366,6 +363,8 @@
     "is-windows": ["is-windows@1.0.2", "", {}, "sha512-eXK1UInq2bPmjyX6e3VHIzMLobc4J94i4AWn+Hpq3OU5KkrRC96OAcR3PRJ/pGu6m8TRnBHP9dkXQVsT/COVIA=="],
 
     "isexe": ["isexe@2.0.0", "", {}, "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw=="],
+
+    "jlc-mcp": ["jlc-mcp@workspace:packages/jlc-mcp"],
 
     "jose": ["jose@6.1.3", "", {}, "sha512-0TpaTfihd4QMNwrz/ob2Bp7X04yuxJkjRGi4aKmOqwhov54i6u79oCv7T+C7lo70MKH6BesI3vscD1yb/yzKXQ=="],
 

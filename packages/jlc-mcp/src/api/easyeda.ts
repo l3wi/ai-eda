@@ -2,8 +2,8 @@
  * EasyEDA API client for component library fetching
  */
 
-import type { EasyEDAComponentData, EasyEDAPin, EasyEDAPad } from '@ai-eda/common';
-import { createLogger } from '@ai-eda/common';
+import type { EasyEDAComponentData, EasyEDAPin, EasyEDAPad } from 'ai-eda-common';
+import { createLogger } from 'ai-eda-common';
 import { execSync } from 'child_process';
 
 const logger = createLogger('easyeda-api');
