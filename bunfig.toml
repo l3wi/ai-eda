@@ -1,0 +1,7 @@
+[install]
+# Use exact versions for reproducible builds
+exact = true
+
+[install.lockfile]
+# Save lockfile
+save = true

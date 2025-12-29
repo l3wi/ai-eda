@@ -1,0 +1,15 @@
+# Local Configuration
+
+## Personal Preferences
+
+Add your personal preferences here. This file is gitignored.
+
+## Local Paths
+
+```
+KICAD_PATH=/path/to/kicad
+```
+
+## Notes
+
+Add any local development notes here.
