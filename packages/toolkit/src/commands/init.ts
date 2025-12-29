@@ -2,9 +2,11 @@
  * Init command - Initialize a new EDA project
  */
 
-import { existsSync, mkdirSync, writeFileSync, copyFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, copyFileSync, readdirSync, statSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import chalk from 'chalk';
+import ora from 'ora';
 
 export interface InitOptions {
   template: 'basic' | 'advanced';
@@ -31,20 +33,21 @@ export async function initCommand(
 ): Promise<void> {
   const projectDir = join(process.cwd(), projectName);
 
-  console.log(`\nInitializing EDA project: ${projectName}`);
-  console.log(`Template: ${options.template}`);
-  console.log(`Layers: ${options.layers}`);
+  console.log('');
+  console.log(chalk.bold(`Initializing EDA project: ${chalk.cyan(projectName)}`));
+  console.log(chalk.dim(`Template: ${options.template} | Layers: ${options.layers}`));
   console.log('');
 
   // Create project directory
   if (existsSync(projectDir)) {
-    console.error(`Error: Directory "${projectName}" already exists`);
+    console.error(chalk.red(`Error: Directory "${projectName}" already exists`));
     process.exit(1);
   }
 
+  // Create directory structure
+  const dirSpinner = ora('Creating directory structure...').start();
   mkdirSync(projectDir, { recursive: true });
 
-  // Create directory structure
   for (const dir of DIRECTORIES) {
     const dirPath = join(projectDir, dir);
     mkdirSync(dirPath, { recursive: true });
@@ -52,35 +55,40 @@ export async function initCommand(
     // Add .gitkeep to empty directories
     writeFileSync(join(dirPath, '.gitkeep'), '');
   }
-
-  console.log('Created directory structure');
+  dirSpinner.succeed('Created directory structure');
 
   // Copy templates from the templates directory
+  const templateSpinner = ora('Copying templates...').start();
   const templatesDir = getTemplatesDir();
   if (templatesDir && existsSync(templatesDir)) {
-    await copyTemplates(templatesDir, projectDir, projectName);
+    await copyTemplates(templatesDir, projectDir, projectName, options);
+    templateSpinner.succeed('Copied project templates');
   } else {
     // Create minimal templates inline
     createMinimalTemplates(projectDir, projectName, options);
+    templateSpinner.succeed('Created project files');
   }
-
-  console.log('Created project files');
 
   // Initialize git if not disabled
   if (!options.noGit) {
+    const gitSpinner = ora('Initializing git repository...').start();
     try {
       const { execSync } = await import('child_process');
       execSync('git init', { cwd: projectDir, stdio: 'ignore' });
-      console.log('Initialized git repository');
+      gitSpinner.succeed('Initialized git repository');
     } catch {
-      console.warn('Warning: Could not initialize git repository');
+      gitSpinner.warn('Could not initialize git repository');
     }
   }
 
-  console.log(`\nProject "${projectName}" created successfully!`);
-  console.log(`\nNext steps:`);
-  console.log(`  cd ${projectName}`);
-  console.log(`  # Open in Claude Code and use /eda-spec to define requirements`);
+  console.log('');
+  console.log(chalk.bold.green(`Project "${projectName}" created successfully!`));
+  console.log('');
+  console.log(chalk.bold('Next steps:'));
+  console.log(chalk.dim('  1.'), `cd ${projectName}`);
+  console.log(chalk.dim('  2.'), 'Open in Claude Code');
+  console.log(chalk.dim('  3.'), `Run ${chalk.cyan('/eda-spec')} to define requirements`);
+  console.log('');
 }
 
 function getTemplatesDir(): string | null {
@@ -107,7 +115,8 @@ function getTemplatesDir(): string | null {
 async function copyTemplates(
   templatesDir: string,
   projectDir: string,
-  projectName: string
+  projectName: string,
+  options: InitOptions
 ): Promise<void> {
   // Copy Claude commands
   const commandsDir = join(templatesDir, 'claude/commands');
@@ -132,8 +141,11 @@ async function copyTemplates(
   if (existsSync(projectFilesDir)) {
     for (const file of readdirSync(projectFilesDir)) {
       if (file.endsWith('.template')) {
-        const content = await Bun.file(join(projectFilesDir, file)).text();
-        const rendered = renderTemplate(content, { PROJECT_NAME: projectName });
+        const content = readFileSync(join(projectFilesDir, file), 'utf-8');
+        const rendered = renderTemplate(content, {
+          PROJECT_NAME: projectName,
+          LAYERS: String(options.layers),
+        });
         const outputName = file.replace('.template', '');
         writeFileSync(join(projectDir, outputName), rendered);
       }
@@ -145,7 +157,7 @@ async function copyTemplates(
   if (existsSync(claudeMdDir)) {
     const claudeMdPath = join(claudeMdDir, 'CLAUDE.md.template');
     if (existsSync(claudeMdPath)) {
-      const content = await Bun.file(claudeMdPath).text();
+      const content = readFileSync(claudeMdPath, 'utf-8');
       const rendered = renderTemplate(content, {
         PROJECT_NAME: projectName,
         PROJECT_DESCRIPTION: 'AI-assisted EDA project',
@@ -153,6 +165,30 @@ async function copyTemplates(
       writeFileSync(join(projectDir, 'CLAUDE.md'), rendered);
     }
   }
+
+  // Create design-constraints.json with layer count
+  const constraints = {
+    project: {
+      name: projectName,
+      version: '0.1.0',
+      description: '',
+    },
+    power: {
+      input: { type: '', voltage: { min: 0, max: 0 } },
+      rails: [],
+    },
+    board: {
+      layers: options.layers,
+      size: { width_mm: 0, height_mm: 0 },
+      mounting_holes: [],
+    },
+    interfaces: [],
+    environment: {
+      temp_min_c: -20,
+      temp_max_c: 70,
+    },
+  };
+  writeFileSync(join(projectDir, 'docs/design-constraints.json'), JSON.stringify(constraints, null, 2));
 }
 
 function copyDirectory(src: string, dest: string): void {

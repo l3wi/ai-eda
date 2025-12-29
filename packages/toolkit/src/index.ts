@@ -6,7 +6,7 @@
  */
 
 import { Command } from 'commander';
-import { initCommand, doctorCommand, updateCommand } from './commands/index.js';
+import { initCommand, doctorCommand, updateCommand, configCommand, kicadIpcCommand } from './commands/index.js';
 
 const program = new Command();
 
@@ -50,6 +50,36 @@ program
       agents: options.agents,
       skills: options.skills,
       all: options.all,
+    });
+  });
+
+program
+  .command('config')
+  .description('Manage project configuration')
+  .option('-s, --set <key=value>', 'Set a configuration value')
+  .option('-g, --get <key>', 'Get a configuration value')
+  .option('-l, --list', 'List all configuration')
+  .action(async (options) => {
+    await configCommand({
+      set: options.set,
+      get: options.get,
+      list: options.list,
+    });
+  });
+
+program
+  .command('kicad-ipc')
+  .description('Manage KiCad IPC API for real-time control')
+  .option('-e, --enable', 'Enable KiCad IPC API')
+  .option('-d, --disable', 'Disable KiCad IPC API')
+  .option('-s, --status', 'Show IPC API status')
+  .option('-v, --version <version>', 'KiCad version (e.g., 9.0, 8.0)', '9.0')
+  .action(async (options) => {
+    await kicadIpcCommand({
+      enable: options.enable,
+      disable: options.disable,
+      status: options.status,
+      version: options.version,
     });
   });
 

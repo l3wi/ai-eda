@@ -2,9 +2,11 @@
  * Update command - Update project templates
  */
 
-import { existsSync, mkdirSync, writeFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import chalk from 'chalk';
+import ora from 'ora';
 
 export interface UpdateOptions {
   commands: boolean;
@@ -18,18 +20,18 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
 
   // Check if we're in a project directory
   if (!existsSync(join(projectDir, 'CLAUDE.md')) && !existsSync(join(projectDir, '.mcp.json'))) {
-    console.error('Error: Not in an AI-EDA project directory');
+    console.error(chalk.red('Error: Not in an AI-EDA project directory'));
     console.error('Run this command from a project created with "ai-eda init"');
     process.exit(1);
   }
 
-  console.log('\nUpdating project templates...\n');
+  console.log(chalk.bold('\nUpdating project templates...\n'));
 
   const updateAll = options.all || (!options.commands && !options.agents && !options.skills);
 
   const templatesDir = getTemplatesDir();
   if (!templatesDir) {
-    console.error('Error: Could not find templates directory');
+    console.error(chalk.red('Error: Could not find templates directory'));
     console.error('Make sure @ai-eda/toolkit is installed correctly');
     process.exit(1);
   }
@@ -38,41 +40,50 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
 
   // Update commands
   if (updateAll || options.commands) {
+    const spinner = ora('Updating commands...').start();
     const commandsDir = join(templatesDir, 'claude/commands');
     if (existsSync(commandsDir)) {
       const destDir = join(projectDir, '.claude/commands');
       mkdirSync(destDir, { recursive: true });
       const count = copyDirectory(commandsDir, destDir);
-      console.log(`Updated ${count} command(s)`);
+      spinner.succeed(`Updated ${count} command(s)`);
       updated += count;
+    } else {
+      spinner.warn('No commands found in templates');
     }
   }
 
   // Update agents
   if (updateAll || options.agents) {
+    const spinner = ora('Updating agents...').start();
     const agentsDir = join(templatesDir, 'claude/agents');
     if (existsSync(agentsDir)) {
       const destDir = join(projectDir, '.claude/agents');
       mkdirSync(destDir, { recursive: true });
       const count = copyDirectory(agentsDir, destDir);
-      console.log(`Updated ${count} agent(s)`);
+      spinner.succeed(`Updated ${count} agent(s)`);
       updated += count;
+    } else {
+      spinner.warn('No agents found in templates');
     }
   }
 
   // Update skills
   if (updateAll || options.skills) {
+    const spinner = ora('Updating skills...').start();
     const skillsDir = join(templatesDir, 'claude/skills');
     if (existsSync(skillsDir)) {
       const destDir = join(projectDir, '.claude/skills');
       mkdirSync(destDir, { recursive: true });
       const count = copyDirectory(skillsDir, destDir);
-      console.log(`Updated ${count} skill(s)`);
+      spinner.succeed(`Updated ${count} skill file(s)`);
       updated += count;
+    } else {
+      spinner.warn('No skills found in templates');
     }
   }
 
-  console.log(`\nTotal: ${updated} file(s) updated`);
+  console.log(chalk.bold.green(`\nTotal: ${updated} file(s) updated`));
 }
 
 function getTemplatesDir(): string | null {
@@ -108,8 +119,7 @@ function copyDirectory(src: string, dest: string): number {
     if (statSync(srcPath).isDirectory()) {
       count += copyDirectory(srcPath, destPath);
     } else {
-      const content = Bun.file(srcPath);
-      Bun.write(destPath, content);
+      copyFileSync(srcPath, destPath);
       count++;
     }
   }

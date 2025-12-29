@@ -2,8 +2,10 @@
  * Doctor command - Check environment setup
  */
 
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { homedir, platform } from 'os';
+import chalk from 'chalk';
 
 interface CheckResult {
   name: string;
@@ -11,13 +13,54 @@ interface CheckResult {
   message: string;
 }
 
+/**
+ * Get the KiCad configuration directory based on platform
+ */
+export function getKicadConfigDir(version: string = '9.0'): string {
+  const home = homedir();
+  const plat = platform();
+
+  if (plat === 'darwin') {
+    return join(home, 'Library', 'Preferences', 'kicad', version);
+  } else if (plat === 'win32') {
+    return join(process.env.APPDATA || join(home, 'AppData', 'Roaming'), 'kicad', version);
+  } else {
+    // Linux and others
+    return join(home, '.config', 'kicad', version);
+  }
+}
+
+/**
+ * Check if KiCad IPC API is enabled
+ */
+export function checkKicadIpcEnabled(version: string = '9.0'): { enabled: boolean; configPath: string; exists: boolean } {
+  const configDir = getKicadConfigDir(version);
+  const configPath = join(configDir, 'kicad_common.json');
+
+  if (!existsSync(configPath)) {
+    return { enabled: false, configPath, exists: false };
+  }
+
+  try {
+    const content = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(content);
+    const enabled = config?.api?.enable_server === true;
+    return { enabled, configPath, exists: true };
+  } catch {
+    return { enabled: false, configPath, exists: true };
+  }
+}
+
 export async function doctorCommand(): Promise<void> {
-  console.log('\nChecking AI-EDA environment...\n');
+  console.log(chalk.bold('\nChecking AI-EDA environment...\n'));
 
   const results: CheckResult[] = [];
 
   // Check KiCad
   results.push(await checkKiCad());
+
+  // Check KiCad IPC API
+  results.push(checkKicadIpc());
 
   // Check Bun
   results.push(await checkBun());
@@ -30,24 +73,69 @@ export async function doctorCommand(): Promise<void> {
 
   // Print results
   for (const result of results) {
-    const icon = result.status === 'pass' ? '✓' : result.status === 'warn' ? '⚠' : '✗';
-    const color = result.status === 'pass' ? '\x1b[32m' : result.status === 'warn' ? '\x1b[33m' : '\x1b[31m';
-    console.log(`${color}${icon}\x1b[0m ${result.name}: ${result.message}`);
+    let icon: string;
+    let coloredMessage: string;
+
+    if (result.status === 'pass') {
+      icon = chalk.green('✓');
+      coloredMessage = chalk.dim(result.message);
+    } else if (result.status === 'warn') {
+      icon = chalk.yellow('⚠');
+      coloredMessage = chalk.yellow(result.message);
+    } else {
+      icon = chalk.red('✗');
+      coloredMessage = chalk.red(result.message);
+    }
+
+    console.log(`${icon} ${chalk.bold(result.name)}: ${coloredMessage}`);
   }
 
   const failures = results.filter((r) => r.status === 'fail');
   const warnings = results.filter((r) => r.status === 'warn');
+  const passes = results.filter((r) => r.status === 'pass');
 
   console.log('');
   if (failures.length > 0) {
-    console.log(`\x1b[31m${failures.length} check(s) failed\x1b[0m`);
+    console.log(chalk.red.bold(`${failures.length} check(s) failed`));
   }
   if (warnings.length > 0) {
-    console.log(`\x1b[33m${warnings.length} warning(s)\x1b[0m`);
+    console.log(chalk.yellow(`${warnings.length} warning(s)`));
   }
   if (failures.length === 0 && warnings.length === 0) {
-    console.log('\x1b[32mAll checks passed!\x1b[0m');
+    console.log(chalk.green.bold('All checks passed!'));
   }
+  console.log('');
+}
+
+function checkKicadIpc(): CheckResult {
+  // Try multiple KiCad versions
+  const versions = ['9.0', '8.0', '8.99'];
+
+  for (const version of versions) {
+    const { enabled, configPath, exists } = checkKicadIpcEnabled(version);
+
+    if (exists) {
+      if (enabled) {
+        return {
+          name: 'KiCad IPC API',
+          status: 'pass',
+          message: `Enabled (KiCad ${version})`,
+        };
+      } else {
+        return {
+          name: 'KiCad IPC API',
+          status: 'warn',
+          message: `Disabled. Run "ai-eda kicad-ipc enable" to enable real-time control.`,
+        };
+      }
+    }
+  }
+
+  return {
+    name: 'KiCad IPC API',
+    status: 'warn',
+    message: 'KiCad config not found. Install KiCad 9.0+ for IPC API support.',
+  };
 }
 
 async function checkKiCad(): Promise<CheckResult> {
@@ -79,7 +167,7 @@ async function checkKiCad(): Promise<CheckResult> {
 
     // Try PATH
     try {
-      const version = execSync('kicad-cli --version', { encoding: 'utf-8' }).trim();
+      const version = execSync('kicad-cli --version', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
       return {
         name: 'KiCad',
         status: 'pass',
