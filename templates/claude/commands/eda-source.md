@@ -32,24 +32,27 @@ For the role **$ARGUMENTS**, ask:
 - Package size preferences? (Easy to hand-solder? Compact?)
 - Any brands or series to prefer or avoid?
 
-### 2. Research
+### 2. Search LCSC (PRIMARY SOURCE)
 
-Use web search to understand:
-- Common solutions for this application
-- Recommended parts from reference designs
-- Known issues or gotchas
-
-### 3. Search LCSC
-
-Use LCSC MCP tools to find candidates:
+**ALWAYS use LCSC MCP tools first** - this is your primary component database:
 ```
 mcp__lcsc__component_search("<search terms>")
+mcp__lcsc__get_component_details("<lcsc_part_number>")
 ```
+
+**Do NOT use WebSearch for finding components** - the LCSC MCP has real-time stock, pricing, and specifications.
 
 Focus on:
 - In-stock components
 - JLCPCB Basic parts (when suitable)
 - Good price at target quantity
+
+### 3. Supplementary Research (only if needed)
+
+Only use WebSearch/WebFetch if:
+- Need application circuit from datasheet
+- Looking for reference designs
+- LCSC has no suitable options (rare)
 
 ### 4. Present Options
 
