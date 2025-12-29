@@ -1,7 +1,7 @@
 ---
 description: Interactive component sourcing session
 argument-hint: [component-role]
-allowed-tools: Read, Write, Glob, WebFetch, mcp__lcsc__*
+allowed-tools: Read, Write, Glob, WebFetch, mcp__lcsc__*, mcp__kicad__search_symbols, mcp__kicad__list_symbol_libraries, mcp__kicad__get_symbol_info
 ---
 
 # Component Sourcing: $ARGUMENTS
@@ -32,30 +32,34 @@ For the role **$ARGUMENTS**, ask:
 - Package size preferences? (Easy to hand-solder? Compact?)
 - Any brands or series to prefer or avoid?
 
-### 2. Search LCSC (PRIMARY SOURCE)
+### 2. Search Components
 
-**ALWAYS use LCSC MCP tools first.**
+**ALWAYS search LOCAL libraries first, then online.**
 
 Available MCP tools:
-- `/mcp__lcsc__component_search` - Search with `query`, `basic_only`, `in_stock`, `limit` parameters
-- `/mcp__lcsc__component_get` - Get details with `lcsc_id` parameter
-- `/mcp__lcsc__library_fetch` - Fetch KiCad symbol/footprint
+- `/mcp__kicad__search_symbols` - Search local KiCad symbol libraries (JLCPCB, etc.)
+- `/mcp__lcsc__component_search` - Search LCSC online with `query`, `basic_only`, `in_stock`, `limit`
+- `/mcp__lcsc__component_get` - Get online component details with `lcsc_id`
+- `/mcp__lcsc__library_fetch` - Fetch KiCad symbol/footprint from online
 
 **Do NOT use Bash. Do NOT use WebSearch for components.**
 
 **Search Strategy (in order):**
 
-1. **First: Basic + In-Stock** - Try with `basic_only: true, in_stock: true`
-   - JLCPCB Basic parts have no setup fee ($3 savings per unique part)
-   - In-stock ensures availability
+1. **First: Local Libraries** - Search installed KiCad libraries
+   ```
+   /mcp__kicad__search_symbols query="ESP32" library="JLCPCB"
+   ```
+   - Searches JLCPCB-KiCad-Library and other installed PCM libraries
+   - Components are ready to use immediately (no fetch needed)
+   - Note: Stock/price data from library files may be outdated
 
-2. **Fallback: Extended + In-Stock** - If no good results, try `basic_only: false, in_stock: true`
-   - Extended parts have setup fee but wider selection
-
-3. **Last Resort: All parts** - Only if needed, try `in_stock: false`
-   - Check lead times for out-of-stock items
-
-Always default to `in_stock: true` unless specifically looking for unavailable parts.
+2. **Then: Online (LCSC)** - Search for additional options
+   - **Basic + In-Stock**: `basic_only: true, in_stock: true`
+     - JLCPCB Basic parts = no setup fee ($3 savings)
+   - **Extended + In-Stock**: `basic_only: false, in_stock: true`
+     - Wider selection but setup fee applies
+   - **Last Resort**: `in_stock: false` for out-of-stock items
 
 ### 3. Download and Analyze Datasheets
 
@@ -75,43 +79,66 @@ For each promising candidate:
 
 ### 4. Present Options
 
-Show a comparison table with 3-5 options:
+Show results in two groups:
 
-| Option | LCSC # | MPN | Key Specs | Price | Stock | Datasheet |
-|--------|--------|-----|-----------|-------|-------|-----------|
-| 1 (Rec)| C##### | ... | ... | $X.XX | #### | [link] |
-| 2 | C##### | ... | ... | $X.XX | #### | [link] |
-| 3 | C##### | ... | ... | $X.XX | #### | [link] |
+**Already in Local Library (Ready to Use):**
+| # | Library | Symbol | LCSC | Description |
+|---|---------|--------|------|-------------|
+| L1 | PCM_JLCPCB-MCUs | STM32F103C8T6 | C8734 | ARM Cortex-M3 MCU |
+| L2 | PCM_JLCPCB-Extended | ESP32-C3 | C2838500 | WiFi+BLE RISC-V MCU |
+
+**Available Online (Needs Fetch):**
+| # | LCSC # | MPN | Key Specs | Price | Stock |
+|---|--------|-----|-----------|-------|-------|
+| O1 | C##### | ... | ... | $X.XX | #### |
+| O2 | C##### | ... | ... | $X.XX | #### |
 
 Include for each option:
-- **LCSC part number** (required for ordering)
+- **Symbol reference** (for local) or **LCSC part number** (for online)
 - Key specifications relevant to the role
-- Price at target quantity
-- Current stock level
-- Link to downloaded datasheet
+- Price/stock (note: local library data may be stale)
 - Pros and cons
 
 ### 5. Get Selection
 
 Ask user to choose or request more options.
 
-Once selected:
+Once selected, handle based on source:
+
+**If LOCAL component selected (L1, L2, etc.):**
+- Use the symbol reference directly (e.g., `PCM_JLCPCB-MCUs:STM32F103C8T6`)
+- **Skip library_fetch** - component is already in KiCad libraries
+- Get datasheet URL from symbol info if needed
+- Note: Verify current stock/price on LCSC website before ordering
+
+**If ONLINE component selected (O1, O2, etc.):**
 - Confirm the choice
 - Download datasheet if not already done
-- Document design notes from datasheet
+- Proceed to fetch KiCad libraries (section 6)
 
-### 6. Fetch KiCad Libraries
+### 6. Fetch KiCad Libraries (Online Components Only)
 
-After user confirms selection, fetch the KiCad symbol and footprint:
+**Skip this step if user selected a local library component.**
+
+For online components, fetch the KiCad symbol and footprint:
 
 ```
-/mcp__lcsc__library_fetch lcsc_id="C#####" output_dir="./libraries" include_3d=true
+/mcp__lcsc__library_fetch lcsc_id="C#####" include_3d=true
 ```
 
-This saves:
-- `libraries/symbols/<LCSC_ID>.kicad_sym` - Schematic symbol
-- `libraries/footprints/LCSC.pretty/<NAME>_<LCSC_ID>.kicad_mod` - PCB footprint
-- `libraries/3dmodels/LCSC.3dshapes/<LCSC_ID>.step` - 3D model (if available)
+This saves to the **global EDA-MCP library** (automatically discovered by kicad-mcp):
+- `~/Documents/KiCad/9.0/symbols/EDA-MCP.kicad_sym` - Unified symbol library
+- `~/Documents/KiCad/9.0/footprints/EDA-MCP.pretty/<NAME>_<LCSC_ID>.kicad_mod` - PCB footprint
+- `~/Documents/KiCad/9.0/3dmodels/EDA-MCP.3dshapes/<LCSC_ID>.step` - 3D model (if available)
+
+The response includes:
+- `symbol_ref`: Reference for kicad-mcp (e.g., `EDA-MCP:ESP32-C3`)
+- `footprint_ref`: Footprint reference (e.g., `EDA-MCP:QFN-32_C2838386`)
+
+**For project-local storage** (optional):
+```
+/mcp__lcsc__library_fetch lcsc_id="C#####" project_path="/path/to/project" include_3d=true
+```
 
 ## Output
 
@@ -144,10 +171,10 @@ Add entry:
 
 **Datasheet:** `datasheets/C#####_[MPN].pdf`
 
-**KiCad Libraries:**
-- Symbol: `libraries/symbols/C#####.kicad_sym`
-- Footprint: `libraries/footprints/LCSC.pretty/[NAME]_C#####.kicad_mod`
-- 3D Model: `libraries/3dmodels/LCSC.3dshapes/C#####.step`
+**KiCad References:**
+- Symbol: `[Library]:[SymbolName]` (e.g., `PCM_JLCPCB-MCUs:STM32F103C8T6` or `EDA-MCP:ESP32-C3`)
+- Footprint: `[Library]:[FootprintName]`
+- Source: LOCAL (existing library) or FETCHED (from LCSC)
 ```
 
 ### docs/design-constraints.json
