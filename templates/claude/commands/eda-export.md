@@ -1,92 +1,178 @@
 ---
-description: Export manufacturing files (Gerbers, BOM, etc.)
-argument-hint: [output-format]
-allowed-tools: Read, Write, mcp__kicad__export_*, Bash(zip:*)
+description: Export manufacturing files
+argument-hint: [format: jlcpcb|pcbway|oshpark|generic]
+allowed-tools: Read, Write, Glob, Bash(zip:*), mcp__kicad__export_gerber, mcp__kicad__export_pdf, mcp__kicad__export_bom, mcp__kicad__export_position_file, mcp__kicad__export_3d
 ---
 
-# Manufacturing Export
+# Manufacturing Export: $ARGUMENTS
 
-Export format: **$ARGUMENTS**
+Export files for: **$ARGUMENTS**
 
-Formats: `jlcpcb`, `pcbway`, `oshpark`, `generic`
+## Pre-Export Check
 
-## Context
+Verify design is ready:
+- Check `docs/validation-report.md` exists and shows PASS
+- If not validated, suggest running `/eda-check full` first
 
-@docs/design-constraints.json
-@docs/validation-report.md
+Read context:
+- `@docs/design-constraints.json`
+- `@docs/component-selections.md`
 
-## Pre-Export Checklist
+## Export by Format
 
-- [ ] Validation report shows PASS
-- [ ] DRC clean
-- [ ] All components have LCSC numbers (for JLCPCB)
-- [ ] BOM complete
+### jlcpcb
 
-## Export Tasks
+JLCPCB-specific export:
 
-### 1. Gerber Files
-Generate standard Gerbers:
-- Top Copper (F.Cu)
-- Bottom Copper (B.Cu)
-- Top Silkscreen (F.SilkS)
-- Bottom Silkscreen (B.SilkS)
-- Top Solder Mask (F.Mask)
-- Bottom Solder Mask (B.Mask)
-- Board Outline (Edge.Cuts)
-- Drill files (PTH and NPTH)
+**Gerber files:**
+- F.Cu, B.Cu (copper)
+- F.Mask, B.Mask (soldermask)
+- F.SilkS, B.SilkS (silkscreen)
+- Edge.Cuts (outline)
+- F.Paste, B.Paste (stencil)
+- Drill files (PTH, NPTH)
 
-### 2. BOM Export
-Format per manufacturer:
-- JLCPCB: Comment, Designator, Footprint, LCSC Part Number
-- Generic: Reference, Value, Footprint, Quantity, Manufacturer, MPN, LCSC
+**BOM format:**
+```csv
+Comment,Designator,Footprint,LCSC Part #
+"100nF","C1,C2,C3","0402","C1525"
+```
 
-### 3. Position File (CPL)
-Pick and place data:
-- Designator, Mid X, Mid Y, Layer, Rotation
+**Position file (CPL):**
+```csv
+Designator,Mid X,Mid Y,Layer,Rotation
+"C1","10.5","20.3","top","0"
+```
 
-### 4. Assembly Drawing
-- PDF of board with component placement
-- Reference designators visible
-
-### 5. Package for Upload
-Create ZIP structure per manufacturer spec.
-
-## Output
-
+**Output structure:**
 ```
 production/
 ├── gerbers/
-│   ├── project-F_Cu.gbr
-│   ├── project-B_Cu.gbr
-│   ├── ...
-│   └── project.drl
+│   └── [project]-gerbers.zip
 ├── bom/
-│   ├── bom-jlcpcb.csv
-│   └── bom-generic.csv
+│   └── bom-jlcpcb.csv
 ├── assembly/
-│   ├── cpl-jlcpcb.csv
-│   └── assembly-drawing.pdf
-├── fabrication/
-│   └── project-gerbers.zip
-└── README.md (manufacturing notes)
+│   └── cpl-jlcpcb.csv
+└── README.md
 ```
 
-Update `docs/export-manifest.md` with file listing and checksums.
+### pcbway
 
-## Manufacturer-Specific Notes
+PCBWay-specific export:
+
+**Gerber files:** Standard naming
+**BOM:** Flexible format
+**Position:** Optional
+
+### oshpark
+
+OSHPark-specific export:
+
+**Gerber files only** (no assembly service)
+- Standard RS-274X format
+- Specific layer naming
+
+### generic
+
+Generic export for any manufacturer:
+
+**Gerber files:** Standard RS-274X
+**BOM:** Comprehensive CSV with all fields
+**Position:** Standard format
+**Documentation:** PDF schematic and assembly drawings
+
+## Export Process
+
+1. **Generate Gerbers**
+   - Export all copper layers
+   - Export soldermask layers
+   - Export silkscreen layers
+   - Export board outline
+   - Generate drill files
+
+2. **Generate BOM**
+   - Format per target manufacturer
+   - Include LCSC part numbers
+   - Verify all components listed
+
+3. **Generate Position File**
+   - Component centroids
+   - Rotation values
+   - Layer assignment
+
+4. **Create Assembly Drawing**
+   - PDF of board with placement
+   - Reference designators visible
+
+5. **Package Files**
+   - Create ZIP for Gerbers
+   - Organize folder structure
+
+6. **Generate Manifest**
+   - List all files with checksums
+   - Include manufacturing notes
+
+## Output
+
+Create `docs/export-manifest.md`:
+
+```markdown
+# Export Manifest
+
+Project: [name]
+Format: $ARGUMENTS
+Generated: [timestamp]
+
+## Files Generated
+
+### Gerbers
+| File | Description | Checksum |
+|------|-------------|----------|
+| project-F_Cu.gbr | Front copper | abc123 |
+| ... | ... | ... |
+
+### Assembly
+| File | Description |
+|------|-------------|
+| bom-jlcpcb.csv | Bill of materials |
+| cpl-jlcpcb.csv | Component positions |
+
+### Documentation
+| File | Description |
+|------|-------------|
+| schematic.pdf | Full schematic |
+| assembly.pdf | Assembly drawing |
+
+## Manufacturing Notes
+
+- Board size: X × Y mm
+- Layers: N
+- Thickness: 1.6mm
+- Surface finish: [HASL/ENIG]
+- Soldermask: [color]
+
+## Upload Instructions
 
 ### JLCPCB
-- Gerber ZIP naming: any
-- BOM columns: Comment, Designator, Footprint, LCSC Part #
-- CPL columns: Designator, Mid X, Mid Y, Layer, Rotation
-- Rotation corrections may be needed
+1. Go to jlcpcb.com
+2. Click "Quote Now"
+3. Upload gerbers.zip
+4. Configure options
+5. Add assembly (if needed)
+6. Upload BOM and CPL
 
-### PCBWay
-- Standard Gerber naming
-- BOM/CPL optional for assembly
+## Verification Checklist
 
-### OSHPark
-- Gerbers only, specific naming
-- No assembly service
+- [ ] Gerbers open in viewer correctly
+- [ ] BOM matches design
+- [ ] Position file coordinates correct
+- [ ] All files present
+```
 
-After export, files ready for upload to manufacturer.
+## Post-Export
+
+After successful export:
+- Remind user to verify files in Gerber viewer
+- Provide upload instructions for target manufacturer
+- Update project stage to "complete"
+- Congratulate on completing the design!

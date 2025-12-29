@@ -1,87 +1,123 @@
 ---
-description: Source and select components based on project requirements
+description: Interactive component sourcing session
 argument-hint: [component-role]
-allowed-tools: Read, Write, WebSearch, mcp__lcsc__*, mcp__kicad__library_*
+allowed-tools: Read, Write, Glob, WebFetch, WebSearch, mcp__lcsc__*
 ---
 
-# Component Sourcing Agent
+# Component Sourcing: $ARGUMENTS
 
-Source components for: **$ARGUMENTS**
+Guide the user through sourcing components for role: **$ARGUMENTS**
 
-## Context
+## Context Loading
 
-Read the project specifications:
-- @docs/project-spec.md
-- @docs/design-constraints.json
-- @docs/component-requirements.md
+Read project context:
+- `@docs/design-constraints.json` - Project requirements
+- `@docs/project-spec.md` - Full specification
+- `@docs/component-selections.md` - Already selected components (if exists)
 
-## Your Task
+### If context missing:
 
-For the specified component role ($ARGUMENTS), you will:
+Ask user for minimum information needed:
+1. What does this component need to do?
+2. Key specifications (voltage, current, package)?
+3. Any specific preferences or constraints?
 
-### 1. Understand Requirements
-- What specifications does this component need to meet?
-- What are the critical parameters?
-- Any preferences from the project spec?
+## Interactive Workflow
 
-### 2. Research Options
-- Use web search to find suitable component families/series
-- Understand trade-offs between different solutions
-- Note application-specific considerations from datasheets
+### 1. Clarify Requirements
 
-### 3. Search LCSC Inventory
-Use the LCSC MCP tools to:
-- Search for components matching requirements
-- Check stock availability
-- Compare pricing at different quantities
-- Verify components have EasyEDA libraries available
+For the role **$ARGUMENTS**, ask:
+- What are the must-have specifications?
+- Any nice-to-have features?
+- Package size preferences? (Easy to hand-solder? Compact?)
+- Any brands or series to prefer or avoid?
 
-### 4. Download & Analyze Datasheets
-For top candidates (3-5 options):
-- Download datasheets to `datasheets/` folder
-- Review key specifications
-- Check reference designs/application circuits
-- Note any specific requirements (layout, decoupling, etc.)
+### 2. Research
 
-### 5. Present Options
-Create a comparison table with:
-- Part number (LCSC#)
-- Manufacturer part number
-- Key specifications
-- Price (at target quantity)
+Use web search to understand:
+- Common solutions for this application
+- Recommended parts from reference designs
+- Known issues or gotchas
+
+### 3. Search LCSC
+
+Use LCSC MCP tools to find candidates:
+```
+mcp__lcsc__component_search("<search terms>")
+```
+
+Focus on:
+- In-stock components
+- JLCPCB Basic parts (when suitable)
+- Good price at target quantity
+
+### 4. Present Options
+
+Show a comparison table with 3-5 options:
+
+| Option | MPN | Key Specs | Price | Stock | Notes |
+|--------|-----|-----------|-------|-------|-------|
+| 1 (Rec)| ... | ... | $X.XX | #### | Why recommended |
+| 2 | ... | ... | $X.XX | #### | Alternative reason |
+| 3 | ... | ... | $X.XX | #### | Budget option |
+
+Include:
+- LCSC part number
+- Key specifications relevant to the role
+- Price at target quantity
 - Stock status
-- Pros/cons for this application
-- Library availability
+- Pros and cons
 
-### 6. User Selection
-- Present options to user
-- Get confirmation on selection
-- Record selection with rationale
+### 5. Get Selection
+
+Ask user to choose or request more options.
+
+Once selected:
+- Confirm the choice
+- Download/note datasheet location
+- Document any design notes from datasheet
 
 ## Output
 
 Update these files:
 
-1. `docs/component-selections.md` - Add selected component
-2. `docs/design-constraints.json` - Update with component-specific constraints
-3. Keep selected datasheet, remove others
+### docs/component-selections.md
 
-## Component Roles to Source
+Add entry:
+```markdown
+### [Role]: [Part Name] ([LCSC#])
 
-Common roles (use as guide):
-- main-mcu: Main microcontroller
-- power-input: Input protection, connector
-- power-regulator-XXv: Voltage regulators
-- oscillator: Crystal/oscillator for MCU
-- decoupling: Bulk and bypass capacitors
-- esd-protection: ESD protection ICs
-- usb-interface: USB connector, ESD, etc.
-- ethernet-phy: Ethernet PHY + magnetics
-- wifi-module: WiFi/BT module
-- rf-frontend: Antenna, matching, etc.
-- sensor-XXX: Various sensors
-- connector-XXX: Various connectors
-- led-indicator: Status LEDs
-- button-input: User buttons
+**Selected:** [Date]
+**MPN:** [Manufacturer Part Number]
+**Price:** $X.XX @ [qty]
 
-After selection, ask if user wants to source another component.
+**Specifications:**
+- Key spec 1
+- Key spec 2
+
+**Rationale:** [Why chosen]
+
+**Design Notes:** [From datasheet - layout, decoupling, etc.]
+
+**Datasheet:** datasheets/[filename].pdf
+```
+
+### docs/design-constraints.json
+
+Update the `components` section:
+- Move role from `pending` to `selected`
+- Add component details
+
+### Datasheet
+
+Save datasheet to `datasheets/` folder if not already present.
+
+## Next Steps
+
+After selection, ask:
+- "Would you like to source another component?"
+- Suggest logical next component based on dependencies
+
+When all components sourced:
+- Suggest `/eda-schematic` to begin schematic capture
+- Update stage to "schematic"
