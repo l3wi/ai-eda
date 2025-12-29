@@ -16,6 +16,15 @@ Read project context:
 - `@docs/schematic-status.md`
 - `@docs/pcb-status.md`
 
+## New Project Detection
+
+If this is a new project (no schematic, empty constraints):
+- Report that the project needs setup first
+- Direct user to run `/eda-new` to define project requirements
+- Do NOT suggest commands that don't exist (like `/eda-spec`)
+
+Available commands are: `/eda-new`, `/eda-source`, `/eda-schematic`, `/eda-layout`, `/eda-check`, `/eda-export`
+
 ## Validation Scopes
 
 ### schematic
