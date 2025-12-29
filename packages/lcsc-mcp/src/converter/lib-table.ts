@@ -7,16 +7,20 @@ import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 
-const LIBRARY_NAME = 'LCSC';
-const LIBRARY_DESCRIPTION = 'LCSC/EasyEDA Component Library';
+const DEFAULT_LIBRARY_NAME = 'LCSC';
+const DEFAULT_LIBRARY_DESCRIPTION = 'LCSC/EasyEDA Component Library';
 
 /**
  * Generate sym-lib-table content
  */
-export function generateSymLibTable(symbolLibPath: string): string {
+export function generateSymLibTable(
+  symbolLibPath: string,
+  libraryName: string = DEFAULT_LIBRARY_NAME,
+  description: string = DEFAULT_LIBRARY_DESCRIPTION
+): string {
   return `(sym_lib_table
   (version 7)
-  (lib (name "${LIBRARY_NAME}")(type "KiCad")(uri "${symbolLibPath}")(options "")(descr "${LIBRARY_DESCRIPTION}"))
+  (lib (name "${libraryName}")(type "KiCad")(uri "${symbolLibPath}")(options "")(descr "${description}"))
 )
 `;
 }
@@ -24,10 +28,14 @@ export function generateSymLibTable(symbolLibPath: string): string {
 /**
  * Generate fp-lib-table content
  */
-export function generateFpLibTable(footprintLibPath: string): string {
+export function generateFpLibTable(
+  footprintLibPath: string,
+  libraryName: string = DEFAULT_LIBRARY_NAME,
+  description: string = DEFAULT_LIBRARY_DESCRIPTION
+): string {
   return `(fp_lib_table
   (version 7)
-  (lib (name "${LIBRARY_NAME}")(type "KiCad")(uri "${footprintLibPath}")(options "")(descr "${LIBRARY_DESCRIPTION}"))
+  (lib (name "${libraryName}")(type "KiCad")(uri "${footprintLibPath}")(options "")(descr "${description}"))
 )
 `;
 }
@@ -47,7 +55,8 @@ export function addLibraryToTable(
   tableContent: string,
   libraryName: string,
   libraryPath: string,
-  type: 'sym' | 'fp'
+  type: 'sym' | 'fp',
+  description: string = DEFAULT_LIBRARY_DESCRIPTION
 ): string {
   // Check if library already exists
   if (libraryExistsInTable(tableContent, libraryName)) {
@@ -63,20 +72,24 @@ export function addLibraryToTable(
   const withoutClose = trimmed.slice(0, -1);
 
   // Add new library entry
-  const newEntry = `  (lib (name "${libraryName}")(type "KiCad")(uri "${libraryPath}")(options "")(descr "${LIBRARY_DESCRIPTION}"))\n`;
+  const newEntry = `  (lib (name "${libraryName}")(type "KiCad")(uri "${libraryPath}")(options "")(descr "${description}"))\n`;
 
   return withoutClose + newEntry + ')\n';
 }
 
 /**
- * Ensure sym-lib-table exists and contains LCSC library
+ * Ensure sym-lib-table exists and contains specified library
  * @param projectDir - Path to the KiCad project directory
  * @param symbolLibPath - Path to the symbol library file (relative or absolute)
+ * @param libraryName - Library name (default: LCSC)
+ * @param description - Library description
  * @returns true if table was created or modified, false if already correct
  */
 export async function ensureSymLibTable(
   projectDir: string,
-  symbolLibPath: string
+  symbolLibPath: string,
+  libraryName: string = DEFAULT_LIBRARY_NAME,
+  description: string = DEFAULT_LIBRARY_DESCRIPTION
 ): Promise<{ created: boolean; modified: boolean; path: string }> {
   const tablePath = join(projectDir, 'sym-lib-table');
 
@@ -87,7 +100,7 @@ export async function ensureSymLibTable(
 
   if (!existsSync(tablePath)) {
     // Create new table
-    const content = generateSymLibTable(relativePath);
+    const content = generateSymLibTable(relativePath, libraryName, description);
     await writeFile(tablePath, content, 'utf-8');
     return { created: true, modified: false, path: tablePath };
   }
@@ -95,25 +108,29 @@ export async function ensureSymLibTable(
   // Read existing table
   const existingContent = await readFile(tablePath, 'utf-8');
 
-  if (libraryExistsInTable(existingContent, LIBRARY_NAME)) {
+  if (libraryExistsInTable(existingContent, libraryName)) {
     return { created: false, modified: false, path: tablePath };
   }
 
   // Add library to existing table
-  const updatedContent = addLibraryToTable(existingContent, LIBRARY_NAME, relativePath, 'sym');
+  const updatedContent = addLibraryToTable(existingContent, libraryName, relativePath, 'sym', description);
   await writeFile(tablePath, updatedContent, 'utf-8');
   return { created: false, modified: true, path: tablePath };
 }
 
 /**
- * Ensure fp-lib-table exists and contains LCSC library
+ * Ensure fp-lib-table exists and contains specified library
  * @param projectDir - Path to the KiCad project directory
  * @param footprintLibPath - Path to the footprint library directory (relative or absolute)
+ * @param libraryName - Library name (default: LCSC)
+ * @param description - Library description
  * @returns true if table was created or modified, false if already correct
  */
 export async function ensureFpLibTable(
   projectDir: string,
-  footprintLibPath: string
+  footprintLibPath: string,
+  libraryName: string = DEFAULT_LIBRARY_NAME,
+  description: string = DEFAULT_LIBRARY_DESCRIPTION
 ): Promise<{ created: boolean; modified: boolean; path: string }> {
   const tablePath = join(projectDir, 'fp-lib-table');
 
@@ -124,7 +141,7 @@ export async function ensureFpLibTable(
 
   if (!existsSync(tablePath)) {
     // Create new table
-    const content = generateFpLibTable(relativePath);
+    const content = generateFpLibTable(relativePath, libraryName, description);
     await writeFile(tablePath, content, 'utf-8');
     return { created: true, modified: false, path: tablePath };
   }
@@ -132,12 +149,12 @@ export async function ensureFpLibTable(
   // Read existing table
   const existingContent = await readFile(tablePath, 'utf-8');
 
-  if (libraryExistsInTable(existingContent, LIBRARY_NAME)) {
+  if (libraryExistsInTable(existingContent, libraryName)) {
     return { created: false, modified: false, path: tablePath };
   }
 
   // Add library to existing table
-  const updatedContent = addLibraryToTable(existingContent, LIBRARY_NAME, relativePath, 'fp');
+  const updatedContent = addLibraryToTable(existingContent, libraryName, relativePath, 'fp', description);
   await writeFile(tablePath, updatedContent, 'utf-8');
   return { created: false, modified: true, path: tablePath };
 }
@@ -145,17 +162,19 @@ export async function ensureFpLibTable(
 /**
  * Get the symbol reference string for use in schematics
  * @param symbolName - The symbol name within the library
+ * @param libraryName - Library name (default: LCSC)
  * @returns Full reference like "LCSC:SymbolName"
  */
-export function getSymbolReference(symbolName: string): string {
-  return `${LIBRARY_NAME}:${symbolName}`;
+export function getSymbolReference(symbolName: string, libraryName: string = DEFAULT_LIBRARY_NAME): string {
+  return `${libraryName}:${symbolName}`;
 }
 
 /**
  * Get the footprint reference string for use in symbols/schematics
  * @param footprintName - The footprint filename (without .kicad_mod)
+ * @param libraryName - Library name (default: LCSC)
  * @returns Full reference like "LCSC:FootprintName"
  */
-export function getFootprintReference(footprintName: string): string {
-  return `${LIBRARY_NAME}:${footprintName}`;
+export function getFootprintReference(footprintName: string, libraryName: string = DEFAULT_LIBRARY_NAME): string {
+  return `${libraryName}:${footprintName}`;
 }

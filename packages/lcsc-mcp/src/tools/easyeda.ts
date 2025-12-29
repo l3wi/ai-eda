@@ -15,9 +15,17 @@ import { ensureDir, writeText, writeBinary } from '@ai-eda/common'
 import { easyedaCommunityClient } from '../api/easyeda-community.js'
 import { symbolConverter } from '../converter/symbol.js'
 import { footprintConverter } from '../converter/footprint.js'
+import {
+  ensureSymLibTable,
+  ensureFpLibTable,
+  getSymbolReference,
+  getFootprintReference,
+} from '../converter/lib-table.js'
 import { join } from 'path'
 import { execSync } from 'child_process'
 import { tmpdir } from 'os'
+import { existsSync } from 'fs'
+import { readFile } from 'fs/promises'
 
 // Tool Definitions
 
@@ -69,8 +77,10 @@ export const easyedaGetTool: Tool = {
 
 export const easyedaFetchTool: Tool = {
   name: 'easyeda_fetch',
-  description:
-    'Download and convert EasyEDA community component to KiCAD format. Saves .kicad_sym and .kicad_mod files.',
+  description: `Fetch an EasyEDA community component and add it to the project's EasyEDA library.
+Creates EasyEDA.kicad_sym (symbols) and EasyEDA.pretty/ (footprints) in the libraries folder.
+Automatically updates sym-lib-table and fp-lib-table.
+Returns symbol_ref and footprint_ref for immediate use with add_schematic_component.`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -78,10 +88,9 @@ export const easyedaFetchTool: Tool = {
         type: 'string',
         description: 'Component UUID from easyeda_search results',
       },
-      output_dir: {
+      project_path: {
         type: 'string',
-        description:
-          'Directory to save files (will create symbols/ and footprints/ subdirs)',
+        description: 'Path to the KiCad project directory (contains .kicad_pro file). Libraries will be created in <project_path>/libraries/',
       },
       include_3d: {
         type: 'boolean',
@@ -92,7 +101,7 @@ export const easyedaFetchTool: Tool = {
         description: 'Optional custom name for the component files',
       },
     },
-    required: ['uuid', 'output_dir'],
+    required: ['uuid', 'project_path'],
   },
 }
 
@@ -132,7 +141,7 @@ const EasyedaGetParamsSchema = z.object({
 
 const EasyedaFetchParamsSchema = z.object({
   uuid: z.string().min(1),
-  output_dir: z.string().min(1),
+  project_path: z.string().min(1),
   include_3d: z.boolean().optional(),
   name_override: z.string().optional(),
 })
@@ -275,8 +284,14 @@ export async function handleEasyedaGet(args: unknown) {
   }
 }
 
+const EASYEDA_SYMBOL_LIBRARY_NAME = 'EasyEDA.kicad_sym'
+const EASYEDA_FOOTPRINT_LIBRARY_NAME = 'EasyEDA.pretty'
+const EASYEDA_LIBRARY_NAME = 'EasyEDA'
+const EASYEDA_LIBRARY_DESCRIPTION = 'EasyEDA Community Component Library'
+
 export async function handleEasyedaFetch(args: unknown) {
   const params = EasyedaFetchParamsSchema.parse(args)
+  const projectPath = params.project_path
 
   const component = await easyedaCommunityClient.getComponent(params.uuid)
 
@@ -295,32 +310,58 @@ export async function handleEasyedaFetch(args: unknown) {
   // Convert community component to EasyEDAComponentData format
   const componentData = adaptCommunityComponent(component)
 
-  // Create output directories
-  const outputDir = params.output_dir
-  const symbolsDir = join(outputDir, 'symbols')
-  const footprintsDir = join(outputDir, 'footprints', 'EasyEDA.pretty')
-  const modelsDir = join(outputDir, '3dmodels', 'EasyEDA.3dshapes')
+  // Setup library paths (same structure as library_fetch)
+  const librariesDir = join(projectPath, 'libraries')
+  const symbolsDir = join(librariesDir, 'symbols')
+  const footprintsDir = join(librariesDir, 'footprints', EASYEDA_FOOTPRINT_LIBRARY_NAME)
+  const modelsDir = join(librariesDir, '3dmodels', 'EasyEDA.3dshapes')
 
   await ensureDir(symbolsDir)
   await ensureDir(footprintsDir)
 
-  // Generate file names
-  const baseName =
-    params.name_override ||
-    component.title.replace(/[^a-zA-Z0-9_-]/g, '_')
+  // Handle unified symbol library
+  const symbolLibPath = join(symbolsDir, EASYEDA_SYMBOL_LIBRARY_NAME)
+  const symbolName = params.name_override || component.title.replace(/[^a-zA-Z0-9_-]/g, '_')
 
-  // Generate and save symbol
-  const symbol = symbolConverter.convert(componentData, {
-    libraryName: 'EasyEDA',
-  })
-  const symbolPath = join(symbolsDir, `${baseName}.kicad_sym`)
-  await writeText(symbolPath, symbol)
+  let symbolContent: string
+  let symbolAction: 'created' | 'appended' | 'exists'
 
-  // Generate and save footprint
+  if (existsSync(symbolLibPath)) {
+    // Read existing library
+    const existingContent = await readFile(symbolLibPath, 'utf-8')
+
+    // Check if symbol already exists
+    if (symbolConverter.symbolExistsInLibrary(existingContent, symbolName)) {
+      symbolAction = 'exists'
+      symbolContent = existingContent
+    } else {
+      // Append new symbol
+      symbolContent = symbolConverter.appendToLibrary(existingContent, componentData, {
+        libraryName: EASYEDA_LIBRARY_NAME,
+        symbolName,
+      })
+      symbolAction = 'appended'
+    }
+  } else {
+    // Create new library with this symbol
+    symbolContent = symbolConverter.convert(componentData, {
+      libraryName: EASYEDA_LIBRARY_NAME,
+      symbolName,
+    })
+    symbolAction = 'created'
+  }
+
+  // Write symbol library if changed
+  if (symbolAction !== 'exists') {
+    await writeText(symbolLibPath, symbolContent)
+  }
+
+  // Generate and save footprint (individual files in .pretty directory)
   const footprint = footprintConverter.convert(componentData, {
-    libraryName: 'EasyEDA',
+    libraryName: EASYEDA_LIBRARY_NAME,
   })
-  const footprintPath = join(footprintsDir, `${baseName}.kicad_mod`)
+  const footprintName = symbolName
+  const footprintPath = join(footprintsDir, `${footprintName}.kicad_mod`)
   await writeText(footprintPath, footprint)
 
   // Download 3D model if requested and available
@@ -334,10 +375,28 @@ export async function handleEasyedaFetch(args: unknown) {
       'step'
     )
     if (model) {
-      modelPath = join(modelsDir, `${baseName}.step`)
+      modelPath = join(modelsDir, `${symbolName}.step`)
       await writeBinary(modelPath, model)
     }
   }
+
+  // Update sym-lib-table and fp-lib-table
+  const symTableResult = await ensureSymLibTable(
+    projectPath,
+    symbolLibPath,
+    EASYEDA_LIBRARY_NAME,
+    EASYEDA_LIBRARY_DESCRIPTION
+  )
+  const fpTableResult = await ensureFpLibTable(
+    projectPath,
+    join(librariesDir, 'footprints', EASYEDA_FOOTPRINT_LIBRARY_NAME),
+    EASYEDA_LIBRARY_NAME,
+    EASYEDA_LIBRARY_DESCRIPTION
+  )
+
+  // Generate references for immediate use
+  const symbolRef = getSymbolReference(symbolName, EASYEDA_LIBRARY_NAME)
+  const footprintRef = getFootprintReference(footprintName, EASYEDA_LIBRARY_NAME)
 
   return {
     content: [
@@ -348,11 +407,19 @@ export async function handleEasyedaFetch(args: unknown) {
             success: true,
             uuid: params.uuid,
             component: component.title,
+            symbol_name: symbolName,
+            symbol_ref: symbolRef,
+            footprint_ref: footprintRef,
             files: {
-              symbol: symbolPath,
+              symbol_library: symbolLibPath,
               footprint: footprintPath,
               model_3d: modelPath,
             },
+            library_tables: {
+              sym_lib_table: symTableResult,
+              fp_lib_table: fpTableResult,
+            },
+            symbol_action: symbolAction,
           },
           null,
           2

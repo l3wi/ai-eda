@@ -11,6 +11,7 @@ const EE_TO_MM = 0.254;
 
 export interface SymbolConversionOptions {
   libraryName?: string;
+  symbolName?: string;
   includeDatasheet?: boolean;
   includeManufacturer?: boolean;
 }
@@ -43,7 +44,7 @@ export class SymbolConverter {
     options: SymbolConversionOptions = {}
   ): string {
     const { info, symbol } = component;
-    const name = this.sanitizeName(info.name);
+    const name = options.symbolName ? this.sanitizeName(options.symbolName) : this.sanitizeName(info.name);
     const { origin } = symbol;
     const bbox = this.calculateBoundingBox(symbol.pins, origin);
 
@@ -72,7 +73,11 @@ export class SymbolConverter {
    * Append a symbol to an existing library file content
    * Returns the updated library content
    */
-  appendToLibrary(existingLibraryContent: string, component: EasyEDAComponentData): string {
+  appendToLibrary(
+    existingLibraryContent: string,
+    component: EasyEDAComponentData,
+    options: SymbolConversionOptions = {}
+  ): string {
     // Remove the closing parenthesis and any trailing whitespace
     const trimmed = existingLibraryContent.trimEnd();
     if (!trimmed.endsWith(')')) {
@@ -83,7 +88,7 @@ export class SymbolConverter {
     const withoutClose = trimmed.slice(0, -1);
 
     // Add the new symbol entry and close the library
-    const newSymbol = this.convertToSymbolEntry(component);
+    const newSymbol = this.convertToSymbolEntry(component, options);
     return withoutClose + newSymbol + ')\n';
   }
 
