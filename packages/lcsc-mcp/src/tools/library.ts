@@ -198,6 +198,7 @@ export async function handleFetchLibrary(args: unknown) {
       text: JSON.stringify({
         success: true,
         lcsc_id: params.lcsc_id,
+        datasheet: `https://www.lcsc.com/datasheet/${params.lcsc_id}.pdf`,
         files: {
           symbol: symbolPath,
           footprint: footprintPath,
