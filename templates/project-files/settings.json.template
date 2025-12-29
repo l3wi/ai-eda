@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Write(docs/**)",
+      "Write(hardware/**)",
+      "Write(libraries/**)",
+      "Write(production/**)",
+      "Write(datasheets/**)",
+      "Bash(make:*)",
+      "Bash(zip:*)",
+      "Bash(git:*)",
+      "mcp__kicad__*",
+      "mcp__lcsc__*"
+    ],
+    "deny": [
+      "Write(.env)",
+      "Bash(rm -rf:*)"
+    ]
+  },
+  "env": {
+    "PROJECT_DIR": "."
+  }
+}

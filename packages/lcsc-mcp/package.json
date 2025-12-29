@@ -1,0 +1,38 @@
+{
+  "name": "@ai-eda/lcsc-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP server for LCSC/EasyEDA component sourcing, library fetching, and conversion to KiCad format",
+  "bin": {
+    "ai-eda-lcsc-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node",
+    "start": "bun run ./src/index.ts",
+    "dev": "bun --watch ./src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "mcp",
+    "lcsc",
+    "easyeda",
+    "kicad",
+    "electronics",
+    "components",
+    "pcb"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-eda/common": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  }
+}

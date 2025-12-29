@@ -1,0 +1,60 @@
+# {{PROJECT_NAME}} - EDA Project
+
+## Project Overview
+
+{{PROJECT_DESCRIPTION}}
+
+## Build Commands
+
+- `make drc`: Run design rule checks
+- `make export`: Generate manufacturing files
+- `make bom`: Export bill of materials
+
+## Project Structure
+
+- `hardware/`: KiCad project files
+- `docs/`: Design documentation
+- `datasheets/`: Component datasheets
+- `libraries/`: Project component libraries
+- `production/`: Manufacturing outputs
+
+## Design Constraints
+
+See `docs/design-constraints.json` for detailed specifications.
+
+## Component Selection
+
+See `docs/component-selections.md` for selected parts and alternatives.
+
+## Current Status
+
+Track progress in `docs/project-status.md`.
+
+## EDA Workflow
+
+This project uses @ai-eda toolkit. Available commands:
+
+### Specification
+- `/eda-spec` - Define project requirements
+
+### Component Sourcing
+- `/eda-source [role]` - Source components
+- `/eda-library [part]` - Fetch component libraries
+
+### Schematic
+- `/eda-schematic` - Create schematic
+- `/eda-wiring` - Wire connections
+
+### PCB Layout
+- `/eda-pcb-place` - Place components
+- `/eda-pcb-route` - Route traces
+
+### Validation & Export
+- `/eda-validate` - Check design
+- `/eda-export` - Generate manufacturing files
+
+## IMPORTANT
+
+- Always run `/eda-validate` before `/eda-export`
+- Save and commit after each major step
+- Check stock levels before finalizing component selection
