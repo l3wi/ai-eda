@@ -4,10 +4,77 @@
 
 import type { LCSCSearchOptions, ComponentSearchResult } from '@ai-eda/common';
 import { createLogger } from '@ai-eda/common';
+import { execSync } from 'child_process';
 
 const logger = createLogger('lcsc-api');
 
 const LCSC_SEARCH_API = 'https://wmsc.lcsc.com/ftms/query/product/search';
+
+/**
+ * Fetch URL using curl as fallback when Node fetch fails (e.g., proxy issues)
+ */
+async function fetchWithCurlFallback(
+  url: string,
+  options: { method?: string; body?: string; headers?: Record<string, string> } = {}
+): Promise<string> {
+  const { method = 'GET', body, headers = {} } = options;
+
+  // Try native fetch first
+  try {
+    const fetchOptions: RequestInit = {
+      method,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'ai-eda-lcsc-mcp/1.0.0',
+        ...headers,
+      },
+    };
+
+    if (body) {
+      fetchOptions.body = body;
+    }
+
+    const response = await fetch(url, fetchOptions);
+
+    if (response.ok) {
+      return await response.text();
+    }
+  } catch (error) {
+    logger.debug(`Native fetch failed, falling back to curl: ${error}`);
+  }
+
+  // Fallback to curl
+  try {
+    const curlArgs: string[] = ['curl', '-s'];
+
+    if (method !== 'GET') {
+      curlArgs.push('-X', method);
+    }
+
+    // Add headers
+    curlArgs.push('-H', '"Accept: application/json"');
+    curlArgs.push('-H', '"User-Agent: ai-eda-lcsc-mcp/1.0.0"');
+    for (const [key, value] of Object.entries(headers)) {
+      curlArgs.push('-H', `"${key}: ${value}"`);
+    }
+
+    // Add body for POST requests
+    if (body) {
+      curlArgs.push('-d', `'${body}'`);
+    }
+
+    curlArgs.push(`"${url}"`);
+
+    const result = execSync(curlArgs.join(' '), {
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    });
+
+    return result;
+  } catch (error) {
+    throw new Error(`Both fetch and curl failed for URL: ${url}`);
+  }
+}
 
 export interface LCSCProduct {
   productCode: string;
@@ -37,25 +104,22 @@ export class LCSCClient {
 
     logger.debug(`Searching LCSC for: ${query}`);
 
-    const response = await fetch(LCSC_SEARCH_API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': this.userAgent,
-      },
-      body: JSON.stringify({
-        keyword: query,
-        pageNumber: page,
-        pageSize: Math.min(limit, 50),
-        stockFlag: inStock ? true : undefined,
-      }),
+    const body = JSON.stringify({
+      keyword: query,
+      pageNumber: page,
+      pageSize: Math.min(limit, 50),
+      stockFlag: inStock ? true : undefined,
     });
 
-    if (!response.ok) {
-      throw new Error(`LCSC search failed: ${response.statusText}`);
-    }
+    const responseText = await fetchWithCurlFallback(LCSC_SEARCH_API, {
+      method: 'POST',
+      body,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-    const data = await response.json();
+    const data = JSON.parse(responseText);
     const products: LCSCProduct[] = data.result?.productList || [];
 
     return products.map((p) => ({

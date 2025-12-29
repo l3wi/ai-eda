@@ -4,12 +4,58 @@
 
 import type { EasyEDAComponentData, EasyEDAPin, EasyEDAPad } from '@ai-eda/common';
 import { createLogger } from '@ai-eda/common';
+import { execSync } from 'child_process';
 
 const logger = createLogger('easyeda-api');
 
 const API_ENDPOINT = 'https://easyeda.com/api/products/{lcsc_id}/components?version=6.4.19.5';
 const ENDPOINT_3D_MODEL_STEP = 'https://modules.easyeda.com/qAxj6KHrDKw4blvCG8QJPs7Y/{uuid}';
 const ENDPOINT_3D_MODEL_OBJ = 'https://modules.easyeda.com/3dmodel/{uuid}';
+
+/**
+ * Fetch URL using curl as fallback when Node fetch fails (e.g., proxy issues)
+ */
+async function fetchWithCurlFallback(url: string, options: { binary?: boolean } = {}): Promise<string | Buffer> {
+  // Try native fetch first
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      },
+    });
+
+    if (response.ok) {
+      if (options.binary) {
+        return Buffer.from(await response.arrayBuffer());
+      }
+      return await response.text();
+    }
+  } catch (error) {
+    logger.debug(`Native fetch failed, falling back to curl: ${error}`);
+  }
+
+  // Fallback to curl
+  try {
+    const curlArgs = [
+      'curl',
+      '-s',
+      '-H', '"Accept: application/json"',
+      '-H', '"User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"',
+      `"${url}"`,
+    ];
+
+    if (options.binary) {
+      const result = execSync(curlArgs.join(' '), { maxBuffer: 50 * 1024 * 1024 });
+      return result;
+    }
+
+    const result = execSync(curlArgs.join(' '), { encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 });
+    return result;
+  } catch (error) {
+    throw new Error(`Both fetch and curl failed for URL: ${url}`);
+  }
+}
 
 export class EasyEDAClient {
   private userAgent = 'ai-eda-lcsc-mcp/1.0.0';
@@ -22,26 +68,19 @@ export class EasyEDAClient {
 
     logger.debug(`Fetching component data for: ${lcscPartNumber}`);
 
-    const response = await fetch(url, {
-      headers: {
-        'Accept-Encoding': 'gzip, deflate',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'User-Agent': this.userAgent,
-      },
-    });
+    try {
+      const responseText = await fetchWithCurlFallback(url) as string;
+      const data = JSON.parse(responseText);
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch component: ${response.statusText}`);
+      if (!data.result) {
+        return null;
+      }
+
+      return this.parseComponentData(data.result, lcscPartNumber);
+    } catch (error) {
+      logger.error(`Failed to fetch component ${lcscPartNumber}:`, error);
+      throw error;
     }
-
-    const data = await response.json();
-
-    if (!data.result) {
-      return null;
-    }
-
-    return this.parseComponentData(data.result, lcscPartNumber);
   }
 
   /**
@@ -52,15 +91,12 @@ export class EasyEDAClient {
       ? ENDPOINT_3D_MODEL_STEP.replace('{uuid}', uuid)
       : ENDPOINT_3D_MODEL_OBJ.replace('{uuid}', uuid);
 
-    const response = await fetch(url, {
-      headers: { 'User-Agent': this.userAgent },
-    });
-
-    if (!response.ok) {
+    try {
+      const result = await fetchWithCurlFallback(url, { binary: true });
+      return result as Buffer;
+    } catch {
       return null;
     }
-
-    return Buffer.from(await response.arrayBuffer());
   }
 
   /**
