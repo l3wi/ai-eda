@@ -17,6 +17,6 @@
     }
   },
   "_comments": {
-    "kicad": "Auto-installed by 'ai-eda init' or 'ai-eda doctor --fix'. Uses https://github.com/mixelpixx/KiCAD-MCP-Server with kicad-skip for schematic manipulation."
+    "kicad": "Auto-installed by 'ai-eda init' or 'ai-eda doctor --fix'. Uses https://github.com/mixelpixx/KiCAD-MCP-Server with kicad-sch-mcp for schematic manipulation."
   }
 }

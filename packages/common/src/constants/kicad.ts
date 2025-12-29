@@ -106,7 +106,7 @@ export const KICAD_VERSIONS = ['9.0', '8.0'] as const;
 
 /**
  * Get global KiCad library paths for a specific platform
- * Returns paths in the format that kicad-skip's search pattern expects:
+ * Returns paths in the format that kicad-sch-mcp's search pattern expects:
  * ~/Documents/KiCad/{version}/symbols/*.kicad_sym
  */
 export function getGlobalKicadLibraryPaths(

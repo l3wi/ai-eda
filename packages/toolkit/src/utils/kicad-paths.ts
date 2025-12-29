@@ -141,7 +141,7 @@ export function getKicadUserDir(): string | null {
 
 /**
  * Get global library paths for the EDA-MCP library
- * These paths match kicad-skip's search pattern: ~/Documents/KiCad/{version}/symbols/*.kicad_sym
+ * These paths match kicad-sch-mcp's search pattern: ~/Documents/KiCad/{version}/symbols/*.kicad_sym
  */
 export function getGlobalLibraryPaths(): {
   base: string;

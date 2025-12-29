@@ -5,7 +5,7 @@
  * By default, components are stored in global KiCad library paths:
  * ~/Documents/KiCad/{version}/symbols/EDA-MCP.kicad_sym
  *
- * This matches kicad-skip's search pattern for automatic discovery.
+ * This matches kicad-sch-mcp's search pattern for automatic discovery.
  */
 
 import { z } from 'zod';
@@ -25,7 +25,7 @@ import {
 import { ensureDir, writeText, writeBinary } from 'ai-eda-common';
 import { join } from 'path';
 
-// Library naming - matches kicad-skip search pattern
+// Library naming - matches kicad-sch-mcp search pattern
 const LIBRARY_NAME = 'EDA-MCP';
 const SYMBOL_LIBRARY_NAME = `${LIBRARY_NAME}.kicad_sym`;
 const FOOTPRINT_LIBRARY_NAME = `${LIBRARY_NAME}.pretty`;
@@ -51,7 +51,7 @@ function detectKicadVersion(): string {
 
 /**
  * Get global library paths for the EDA-MCP library
- * These paths match kicad-skip's search pattern
+ * These paths match kicad-sch-mcp's search pattern
  */
 function getGlobalLibraryPaths(): {
   base: string;
@@ -141,7 +141,7 @@ Uses LCSC part numbers (e.g., C2040) because LCSC is JLC PCB's preferred supplie
 Components fetched via LCSC are guaranteed to be available for JLC PCBA service.
 
 By default, saves to global KiCad library at ~/Documents/KiCad/{version}/symbols/EDA-MCP.kicad_sym.
-This location is automatically discovered by kicad-skip (used by kicad-mcp).
+This location is automatically discovered by kicad-sch-mcp (used by kicad-mcp).
 
 Optionally specify project_path for project-local storage.
 

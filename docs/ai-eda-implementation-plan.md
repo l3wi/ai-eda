@@ -31,7 +31,7 @@ ai-eda/
 │   └── common/                  # @ai-eda/common - Shared types/utils
 │
 ├── external/                    # External MCP servers (not in monorepo)
-│   └── KiCAD-MCP-Server/       # mixelpixx/KiCAD-MCP-Server (uses kicad-skip)
+│   └── KiCAD-MCP-Server/       # mixelpixx/KiCAD-MCP-Server (uses kicad-sch-mcp)
 │
 ├── templates/                   # Template files for project initialization
 │   ├── claude/
@@ -295,13 +295,13 @@ instead of building a custom `@ai-eda/kicad-mcp` package.
 
 **Rationale**:
 - The mixelpixx server provides 52+ tools for comprehensive KiCad automation
-- It uses [kicad-skip](https://github.com/psychogenic/kicad-skip) for schematic manipulation
+- It uses [kicad-sch-mcp](https://github.com/psychogenic/kicad-sch-mcp) for schematic manipulation
 - Building equivalent functionality in TypeScript would duplicate significant effort
 - The server is actively maintained and production-ready
 
 ### 3.2 Capabilities (via mixelpixx/KiCAD-MCP-Server)
 
-**Schematic Tools** (powered by kicad-skip):
+**Schematic Tools** (powered by kicad-sch-mcp):
 - `create_schematic` - Initialize new schematic files
 - `load_schematic` - Open existing schematics
 - `add_schematic_component` - Place symbols from libraries
@@ -318,11 +318,11 @@ instead of building a custom `@ai-eda/kicad-mcp` package.
 **Requirements**:
 - KiCad 9.0+ with Python module installed
 - Node.js v18+
-- Python dependencies: `kicad-skip>=0.1.0`, `Pillow`, `cairosvg`, `pydantic`
+- Python dependencies: `kicad-sch-mcp>=0.1.0`, `Pillow`, `cairosvg`, `pydantic`
 
-### 3.3 kicad-skip Library
+### 3.3 kicad-sch-mcp Library
 
-The schematic manipulation is powered by [kicad-skip](https://pypi.org/project/kicad-skip/),
+The schematic manipulation is powered by [kicad-sch-mcp](https://pypi.org/project/kicad-sch-mcp/),
 a Python library for KiCad s-expression file manipulation:
 
 ```python
@@ -358,7 +358,7 @@ git clone https://github.com/mixelpixx/KiCAD-MCP-Server.git
 # Install dependencies
 cd KiCAD-MCP-Server
 npm install
-pip install kicad-skip Pillow cairosvg pydantic
+pip install kicad-sch-mcp Pillow cairosvg pydantic
 ```
 
 ### 3.5 Configuration
@@ -2352,7 +2352,7 @@ This project uses @ai-eda toolkit. Available commands:
 ### Week 3: KiCad Integration ✅ ARCHITECTURE DECISION
 9. Evaluated custom @ai-eda/kicad-mcp vs external server
 10. **Decision**: Use vanilla [mixelpixx/KiCAD-MCP-Server](https://github.com/mixelpixx/KiCAD-MCP-Server)
-11. Server uses [kicad-skip](https://github.com/psychogenic/kicad-skip) for schematic manipulation
+11. Server uses [kicad-sch-mcp](https://github.com/psychogenic/kicad-sch-mcp) for schematic manipulation
 12. Removed @ai-eda/kicad-mcp package from monorepo
 13. Updated templates to reference external KiCad MCP server
 
@@ -2373,8 +2373,8 @@ This project uses @ai-eda toolkit. Available commands:
 
 ### KiCad
 - https://github.com/mixelpixx/KiCAD-MCP-Server (external MCP server)
-- https://github.com/psychogenic/kicad-skip (schematic manipulation library)
-- https://pypi.org/project/kicad-skip/ (PyPI package)
+- https://github.com/psychogenic/kicad-sch-mcp (schematic manipulation library)
+- https://pypi.org/project/kicad-sch-mcp/ (PyPI package)
 - https://dev-docs.kicad.org/en/python/pcbnew/
 - https://docs.kicad.org/master/en/cli/cli.html
 
