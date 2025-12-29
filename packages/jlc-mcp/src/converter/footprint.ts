@@ -3,17 +3,11 @@
  * Converts EasyEDA footprint format to KiCad .kicad_mod format
  */
 
-import { randomUUID } from 'crypto';
 import type { EasyEDAComponentData, EasyEDAPad } from 'ai-eda-common';
-import { KICAD_FOOTPRINT_VERSION, KICAD_DEFAULTS, KICAD_LAYERS, roundTo } from 'ai-eda-common';
+import { KICAD_FOOTPRINT_VERSION, KICAD_LAYERS, roundTo } from 'ai-eda-common';
 
 // EasyEDA uses 10mil units
 const EE_TO_MM = 0.254;
-
-// Generate a UUID for KiCad elements
-function uuid(): string {
-  return randomUUID();
-}
 
 export interface FootprintConversionOptions {
   libraryName?: string;
@@ -44,10 +38,13 @@ export class FootprintConverter {
     // Calculate bounding box once for reuse
     const bounds = this.calculateBounds(footprint.pads, origin);
 
+    // Map footprint type for attr token
+    // EasyEDA uses 'tht' or 'thru_hole', KiCad attr uses 'through_hole' or 'smd'
+    const attrType = this.mapFootprintAttr(footprint.type);
+
     let output = `(footprint "${name}"
 \t(version ${KICAD_FOOTPRINT_VERSION})
 \t(generator "ai-eda-jlc-mcp")
-\t(generator_version "1.0.0")
 \t(layer "${KICAD_LAYERS.F_CU}")
 \t(descr "${this.escapeString(info.description || name)}")
 \t(tags "${this.escapeString(info.category || 'component')}")
@@ -57,7 +54,7 @@ export class FootprintConverter {
     output += this.generateProperties(info, name);
 
     // Add attributes
-    output += `\t(attr ${footprint.type})\n`;
+    output += `\t(attr ${attrType})\n`;
 
     // Add pads
     for (const pad of footprint.pads) {
@@ -75,6 +72,9 @@ export class FootprintConverter {
 
     // Add courtyard (calculated from pads)
     output += this.generateCourtyard(bounds);
+
+    // Add embedded_fonts declaration
+    output += `\t(embedded_fonts no)\n`;
 
     // Add 3D model reference if available
     if (include3DModel && model3d && options.modelPath) {
@@ -115,16 +115,15 @@ export class FootprintConverter {
 
   /**
    * Generate footprint properties with proper KiCad format
+   * Only Reference and Value are visible; custom properties are hidden
    */
   private generateProperties(info: EasyEDAComponentData['info'], name: string): string {
     let props = '';
 
-    // Reference (required)
+    // Reference (required, visible on silkscreen)
     props += `\t(property "Reference" "REF**"
 \t\t(at 0 -3 0)
 \t\t(layer "${KICAD_LAYERS.F_SILKS}")
-\t\t(hide yes)
-\t\t(uuid "${uuid()}")
 \t\t(effects
 \t\t\t(font
 \t\t\t\t(size 1 1)
@@ -133,11 +132,10 @@ export class FootprintConverter {
 \t\t)
 \t)\n`;
 
-    // Value (required)
+    // Value (required, visible on fab layer)
     props += `\t(property "Value" "${this.escapeString(this.sanitizeName(info.name))}"
 \t\t(at 0 3 0)
 \t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\t(uuid "${uuid()}")
 \t\t(effects
 \t\t\t(font
 \t\t\t\t(size 1 1)
@@ -146,13 +144,12 @@ export class FootprintConverter {
 \t\t)
 \t)\n`;
 
-    // Footprint (required, hidden, unlocked)
-    props += `\t(property "Footprint" "${name}"
+    // Description (hidden custom property)
+    if (info.description) {
+      props += `\t(property "Description" "${this.escapeString(info.description)}"
 \t\t(at 0 0 0)
-\t\t(unlocked yes)
 \t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\t(hide yes)
-\t\t(uuid "${uuid()}")
+\t\thide
 \t\t(effects
 \t\t\t(font
 \t\t\t\t(size 1.27 1.27)
@@ -160,44 +157,14 @@ export class FootprintConverter {
 \t\t\t)
 \t\t)
 \t)\n`;
+    }
 
-    // Datasheet (required, hidden, unlocked)
-    props += `\t(property "Datasheet" "${this.escapeString(info.datasheet || '')}"
-\t\t(at 0 0 0)
-\t\t(unlocked yes)
-\t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\t(hide yes)
-\t\t(uuid "${uuid()}")
-\t\t(effects
-\t\t\t(font
-\t\t\t\t(size 1.27 1.27)
-\t\t\t\t(thickness 0.15)
-\t\t\t)
-\t\t)
-\t)\n`;
-
-    // Description (required, hidden, unlocked)
-    props += `\t(property "Description" "${this.escapeString(info.description || '')}"
-\t\t(at 0 0 0)
-\t\t(unlocked yes)
-\t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\t(hide yes)
-\t\t(uuid "${uuid()}")
-\t\t(effects
-\t\t\t(font
-\t\t\t\t(size 1.27 1.27)
-\t\t\t\t(thickness 0.15)
-\t\t\t)
-\t\t)
-\t)\n`;
-
-    // LCSC ID (custom property)
+    // LCSC ID (custom property, hidden)
     if (info.lcscId) {
       props += `\t(property "LCSC" "${info.lcscId}"
 \t\t(at 0 0 0)
 \t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\t(hide yes)
-\t\t(uuid "${uuid()}")
+\t\thide
 \t\t(effects
 \t\t\t(font
 \t\t\t\t(size 1.27 1.27)
@@ -207,13 +174,12 @@ export class FootprintConverter {
 \t)\n`;
     }
 
-    // Manufacturer property
+    // Manufacturer property (hidden)
     if (info.manufacturer) {
       props += `\t(property "Manufacturer" "${this.escapeString(info.manufacturer)}"
 \t\t(at 0 0 0)
 \t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\t(hide yes)
-\t\t(uuid "${uuid()}")
+\t\thide
 \t\t(effects
 \t\t\t(font
 \t\t\t\t(size 1.27 1.27)
@@ -223,14 +189,13 @@ export class FootprintConverter {
 \t)\n`;
     }
 
-    // Component attributes as custom properties
+    // Component attributes as custom properties (hidden)
     if (info.attributes) {
       for (const [key, value] of Object.entries(info.attributes)) {
-        props += `\t(property "${this.escapeString(key)}" "${this.escapeString(value)}"
+        props += `\t(property "${this.escapeString(key)}" "${this.escapeString(String(value))}"
 \t\t(at 0 0 0)
 \t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\t(hide yes)
-\t\t(uuid "${uuid()}")
+\t\thide
 \t\t(effects
 \t\t\t(font
 \t\t\t\t(size 1.27 1.27)
@@ -245,7 +210,7 @@ export class FootprintConverter {
   }
 
   /**
-   * Generate a single pad entry with UUID
+   * Generate a single pad entry
    */
   private generatePad(pad: EasyEDAPad, origin: { x: number; y: number }): string {
     const padType = pad.holeRadius ? 'thru_hole' : 'smd';
@@ -272,10 +237,11 @@ export class FootprintConverter {
       // holeRadius is radius, drill expects diameter
       const drill = roundTo(pad.holeRadius * 2 * EE_TO_MM, 4);
       output += `\n\t\t(drill ${drill})`;
+      // THT pads need remove_unused_layers
+      output += `\n\t\t(remove_unused_layers no)`;
     }
 
-    output += `\n\t\t(uuid "${uuid()}")
-\t)\n`;
+    output += `\n\t)\n`;
     return output;
   }
 
@@ -313,7 +279,6 @@ export class FootprintConverter {
     return `\t(fp_text user "\${REFERENCE}"
 \t\t(at 0 0 0)
 \t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\t(uuid "${uuid()}")
 \t\t(effects
 \t\t\t(font
 \t\t\t\t(size 0.5 0.5)
@@ -334,7 +299,7 @@ export class FootprintConverter {
     const minY = roundTo(bounds.minY - margin, 2);
     const maxY = roundTo(bounds.maxY + margin, 2);
 
-    return this.generateOutlineLines(minX, minY, maxX, maxY, KICAD_LAYERS.F_CRTYD, 0.05, 'default');
+    return this.generateOutlineLines(minX, minY, maxX, maxY, KICAD_LAYERS.F_CRTYD, 0.05);
   }
 
   /**
@@ -366,7 +331,6 @@ export class FootprintConverter {
 \t\t\t(type ${strokeType})
 \t\t)
 \t\t(layer "${layer}")
-\t\t(uuid "${uuid()}")
 \t)\n`;
     }
 
@@ -391,6 +355,26 @@ export class FootprintConverter {
   }
 
   /**
+   * Map EasyEDA footprint type to KiCad attr token
+   * KiCad valid values: through_hole, smd, virtual, board_only
+   */
+  private mapFootprintAttr(eeType: string): string {
+    const type = eeType.toLowerCase();
+    switch (type) {
+      case 'tht':
+      case 'thru_hole':
+      case 'through_hole':
+        return 'through_hole';
+      case 'smd':
+      case 'smt':
+        return 'smd';
+      default:
+        // Default to smd if unknown
+        return 'smd';
+    }
+  }
+
+  /**
    * Map EasyEDA pad shape to KiCad pad shape
    */
   private mapPadShape(eeShape: string): string {
@@ -411,10 +395,11 @@ export class FootprintConverter {
 
   /**
    * Get layers for pad type
+   * Layer order: Cu, Mask, Paste (per KiCad standard)
    */
   private getPadLayers(padType: string): string {
     if (padType === 'smd') {
-      return '"F.Cu" "F.Paste" "F.Mask"';
+      return '"F.Cu" "F.Mask" "F.Paste"';
     } else {
       return '"*.Cu" "*.Mask"';
     }

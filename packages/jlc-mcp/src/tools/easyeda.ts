@@ -52,7 +52,8 @@ export const easyedaSearchTool: Tool = {
       },
       open_preview: {
         type: 'boolean',
-        description: 'Generate and open HTML preview in browser (default: true)',
+        description: 'Generate and open HTML preview in browser',
+        default: true,
       },
     },
     required: ['query'],
