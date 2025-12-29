@@ -3,6 +3,12 @@
 /**
  * jlc-mcp
  * MCP server for JLC/EasyEDA component sourcing and library conversion
+ *
+ * This server uses LCSC part numbers (e.g., C2040) because LCSC is JLC PCB's
+ * preferred component supplier for PCB assembly (PCBA). Components sourced via
+ * LCSC are guaranteed to be available for JLC's assembly service.
+ *
+ * EasyEDA (owned by JLC/LCSC) provides the symbol and footprint data.
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';

@@ -8,7 +8,7 @@ import { jlcClient } from '../api/jlc.js';
 
 export const searchComponentsTool: Tool = {
   name: 'component_search',
-  description: 'Search the JLC/JLCPCB component database by keyword. Returns a list of matching components with their LCSC IDs, prices, and stock levels.',
+  description: 'Search the JLC/JLCPCB component database by keyword. Returns components with LCSC part numbers (JLC\'s preferred supplier for assembly). Includes prices, stock levels, and whether parts are in the Basic Parts Library (lower assembly cost).',
   inputSchema: {
     type: 'object',
     properties: {

@@ -105,13 +105,13 @@ function getProjectLibraryPaths(projectPath: string): {
 
 export const getSymbolKicadTool: Tool = {
   name: 'library_get_symbol',
-  description: 'Get a KiCad-compatible symbol definition for a component. Returns the symbol in .kicad_sym format.',
+  description: 'Get a KiCad-compatible symbol definition by LCSC part number. Returns the symbol in .kicad_sym format. LCSC is JLC PCB\'s preferred supplier for assembly.',
   inputSchema: {
     type: 'object',
     properties: {
       lcsc_id: {
         type: 'string',
-        description: 'LCSC part number',
+        description: 'LCSC part number (e.g., C2040)',
       },
     },
     required: ['lcsc_id'],
@@ -120,13 +120,13 @@ export const getSymbolKicadTool: Tool = {
 
 export const getFootprintKicadTool: Tool = {
   name: 'library_get_footprint',
-  description: 'Get a KiCad-compatible footprint definition for a component. Returns the footprint in .kicad_mod format.',
+  description: 'Get a KiCad-compatible footprint definition by LCSC part number. Returns the footprint in .kicad_mod format. LCSC is JLC PCB\'s preferred supplier for assembly.',
   inputSchema: {
     type: 'object',
     properties: {
       lcsc_id: {
         type: 'string',
-        description: 'LCSC part number',
+        description: 'LCSC part number (e.g., C2040)',
       },
     },
     required: ['lcsc_id'],
@@ -136,6 +136,9 @@ export const getFootprintKicadTool: Tool = {
 export const fetchLibraryTool: Tool = {
   name: 'library_fetch',
   description: `Fetch an LCSC component and add it to the EDA-MCP library.
+
+Uses LCSC part numbers (e.g., C2040) because LCSC is JLC PCB's preferred supplier for assembly.
+Components fetched via LCSC are guaranteed to be available for JLC PCBA service.
 
 By default, saves to global KiCad library at ~/Documents/KiCad/{version}/symbols/EDA-MCP.kicad_sym.
 This location is automatically discovered by kicad-skip (used by kicad-mcp).

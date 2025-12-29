@@ -8,7 +8,7 @@ import { easyedaClient } from '../api/easyeda.js';
 
 export const getComponentTool: Tool = {
   name: 'component_get',
-  description: 'Get detailed component information from LCSC/EasyEDA by LCSC part number (e.g., C2040). Returns symbol pins, footprint pads, manufacturer info, datasheet URL, and 3D model reference.',
+  description: 'Get detailed component information by LCSC part number (e.g., C2040). LCSC is JLC PCB\'s preferred supplier - components with LCSC IDs are available for JLC assembly. Returns symbol pins, footprint pads, manufacturer info, datasheet URL, and 3D model reference.',
   inputSchema: {
     type: 'object',
     properties: {
