@@ -4,7 +4,7 @@
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
-// Import tools
+// Import LCSC tools
 import { searchComponentsTool, handleSearchComponents } from './search.js';
 import { getComponentTool, handleGetComponent } from './details.js';
 import {
@@ -18,14 +18,32 @@ import {
   handleGet3DModel,
 } from './library.js';
 
+// Import EasyEDA community tools
+import {
+  easyedaSearchTool,
+  easyedaGetTool,
+  easyedaFetchTool,
+  easyedaGet3DModelTool,
+  handleEasyedaSearch,
+  handleEasyedaGet,
+  handleEasyedaFetch,
+  handleEasyedaGet3DModel,
+} from './easyeda.js';
+
 // Export all tool definitions
 export const tools: Tool[] = [
+  // LCSC/JLCPCB official library
   searchComponentsTool,
   getComponentTool,
   getSymbolKicadTool,
   getFootprintKicadTool,
   fetchLibraryTool,
   get3DModelTool,
+  // EasyEDA community library
+  easyedaSearchTool,
+  easyedaGetTool,
+  easyedaFetchTool,
+  easyedaGet3DModelTool,
 ];
 
 // Tool handler map
@@ -33,12 +51,18 @@ export const toolHandlers: Record<string, (args: unknown) => Promise<{
   content: Array<{ type: 'text'; text: string }>;
   isError?: boolean;
 }>> = {
+  // LCSC/JLCPCB official library
   component_search: handleSearchComponents,
   component_get: handleGetComponent,
   library_get_symbol: handleGetSymbolKicad,
   library_get_footprint: handleGetFootprintKicad,
   library_fetch: handleFetchLibrary,
   library_get_3d_model: handleGet3DModel,
+  // EasyEDA community library
+  easyeda_search: handleEasyedaSearch,
+  easyeda_get: handleEasyedaGet,
+  easyeda_fetch: handleEasyedaFetch,
+  easyeda_get_3d_model: handleEasyedaGet3DModel,
 };
 
 // Re-export individual tools
@@ -54,3 +78,13 @@ export {
   handleFetchLibrary,
   handleGet3DModel,
 } from './library.js';
+export {
+  easyedaSearchTool,
+  easyedaGetTool,
+  easyedaFetchTool,
+  easyedaGet3DModelTool,
+  handleEasyedaSearch,
+  handleEasyedaGet,
+  handleEasyedaFetch,
+  handleEasyedaGet3DModel,
+} from './easyeda.js';
