@@ -7,6 +7,12 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
+import {
+  isKicadMcpInstalled,
+  installKicadMcp,
+  getKicadMcpConfig,
+  configureMcpJson,
+} from './kicad-mcp.js';
 
 export interface InitOptions {
   template: 'basic' | 'advanced';
@@ -67,6 +73,30 @@ export async function initCommand(
     // Create minimal templates inline
     createMinimalTemplates(projectDir, projectName, options);
     templateSpinner.succeed('Created project files');
+  }
+
+  // Check and install KiCad MCP if needed
+  const mcpSpinner = ora('Checking KiCad MCP Server...').start();
+  const { built: mcpInstalled } = isKicadMcpInstalled();
+
+  if (!mcpInstalled) {
+    mcpSpinner.text = 'Installing KiCad MCP Server (first-time setup)...';
+    const success = await installKicadMcp({ verbose: false });
+    if (success) {
+      mcpSpinner.succeed('Installed KiCad MCP Server');
+    } else {
+      mcpSpinner.warn('Could not install KiCad MCP Server. Run "ai-eda doctor --fix" later.');
+    }
+  } else {
+    mcpSpinner.succeed('KiCad MCP Server ready');
+  }
+
+  // Configure local .mcp.json with KiCad MCP path
+  const configSpinner = ora('Configuring MCP servers...').start();
+  if (configureMcpJson(projectDir)) {
+    configSpinner.succeed('Configured MCP servers');
+  } else {
+    configSpinner.warn('Could not configure KiCad MCP. Run "ai-eda doctor --fix" first.');
   }
 
   // Initialize git if not disabled
@@ -221,26 +251,26 @@ function createMinimalTemplates(
   projectName: string,
   options: InitOptions
 ): void {
-  // Create .mcp.json
-  const mcpConfig = {
+  // Create .mcp.json - KiCad config will be added by configureMcpJson() after this
+  const mcpConfig: Record<string, unknown> = {
     mcpServers: {
-      kicad: {
-        command: 'npx',
-        args: ['-y', '@ai-eda/kicad-mcp@latest'],
-        env: {
-          KICAD_PROJECT_DIR: '${PROJECT_DIR}/hardware',
-        },
-      },
       lcsc: {
         command: 'npx',
         args: ['-y', '@ai-eda/lcsc-mcp@latest'],
         env: {
-          LCSC_CACHE_DIR: '${PROJECT_DIR}/.cache/lcsc',
-          EASYEDA_OUTPUT_DIR: '${PROJECT_DIR}/libraries',
+          LCSC_CACHE_DIR: './.cache/lcsc',
+          EASYEDA_OUTPUT_DIR: './libraries',
         },
       },
     },
   };
+
+  // Try to add KiCad config if available
+  const kicadConfig = getKicadMcpConfig();
+  if (kicadConfig) {
+    (mcpConfig.mcpServers as Record<string, unknown>).kicad = kicadConfig;
+  }
+
   writeFileSync(join(projectDir, '.mcp.json'), JSON.stringify(mcpConfig, null, 2));
 
   // Create .gitignore

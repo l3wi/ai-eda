@@ -10,13 +10,13 @@
     },
     "kicad": {
       "command": "node",
-      "args": ["{{KICAD_MCP_PATH}}/dist/index.js"],
+      "args": ["{{HOME}}/.ai-eda/kicad-mcp/dist/index.js"],
       "env": {
         "KICAD_PROJECT_DIR": "./hardware"
       }
     }
   },
   "_comments": {
-    "kicad": "Replace {{KICAD_MCP_PATH}} with your local clone of https://github.com/mixelpixx/KiCAD-MCP-Server"
+    "kicad": "Auto-installed by 'ai-eda init' or 'ai-eda doctor --fix'. Uses https://github.com/mixelpixx/KiCAD-MCP-Server with kicad-skip for schematic manipulation."
   }
 }
