@@ -34,15 +34,14 @@ For the role **$ARGUMENTS**, ask:
 
 ### 2. Search LCSC (PRIMARY SOURCE)
 
-**ALWAYS use LCSC MCP tools first** - these are native Claude tools, NOT bash commands.
+**ALWAYS use LCSC MCP tools first.**
 
-Call MCP tools directly like any other tool:
-- Use `mcp__lcsc__component_search` with `query` parameter to search
-- Use `mcp__lcsc__component_get` with `lcsc_id` parameter to get details
+Available MCP tools:
+- `/mcp__lcsc__component_search` - Search with `query` parameter
+- `/mcp__lcsc__component_get` - Get details with `lcsc_id` parameter
+- `/mcp__lcsc__library_fetch` - Fetch KiCad symbol/footprint
 
-Example: To search for "buck converter", call the tool `mcp__lcsc__component_search` with argument `{"query": "buck converter 5V 1A"}`.
-
-**Do NOT use Bash to call MCP tools. Do NOT use WebSearch for finding components.**
+**Do NOT use Bash. Do NOT use WebSearch for components.**
 
 Focus on:
 - In-stock components (check `stock` field)
@@ -97,11 +96,7 @@ Once selected:
 After user confirms selection, fetch the KiCad symbol and footprint:
 
 ```
-mcp__lcsc__library_fetch({
-  "lcsc_id": "C#####",
-  "output_dir": "./libraries",
-  "include_3d": true
-})
+/mcp__lcsc__library_fetch lcsc_id="C#####" output_dir="./libraries" include_3d=true
 ```
 
 This saves:
