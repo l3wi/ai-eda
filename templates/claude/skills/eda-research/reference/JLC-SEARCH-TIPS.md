@@ -1,28 +1,28 @@
-# LCSC Search Tips
+# JLC Search Tips
 
-Effective strategies for finding components on LCSC.
+Effective strategies for finding components on JLC/JLCPCB.
 
 ## Search Strategies
 
 ### By Part Number
 Most precise method:
 ```
-mcp__lcsc__component_search("AMS1117-3.3")
-mcp__lcsc__component_search("STM32F103C8T6")
+mcp__jlc__component_search("AMS1117-3.3")
+mcp__jlc__component_search("STM32F103C8T6")
 ```
 
 ### By Category + Specs
 For discovery:
 ```
-mcp__lcsc__component_search("LDO 3.3V 1A SOT-223")
-mcp__lcsc__component_search("ESP32 module")
-mcp__lcsc__component_search("100nF 0402 capacitor")
+mcp__jlc__component_search("LDO 3.3V 1A SOT-223")
+mcp__jlc__component_search("ESP32 module")
+mcp__jlc__component_search("100nF 0402 capacitor")
 ```
 
 ### By LCSC Number
 Direct lookup:
 ```
-mcp__lcsc__component_get("C6186")
+mcp__jlc__component_get("C6186")
 ```
 
 ## Part Number Patterns

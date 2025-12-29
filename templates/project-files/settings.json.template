@@ -12,7 +12,7 @@
       "Bash(git:*)",
       "mcp__kicad-pcb__*",
       "mcp__kicad-sch__*",
-      "mcp__lcsc__*"
+      "mcp__jlc__*"
     ],
     "deny": [
       "Write(.env)",

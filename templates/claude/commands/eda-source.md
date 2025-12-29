@@ -1,7 +1,7 @@
 ---
 description: Interactive component sourcing session
 argument-hint: [component-role]
-allowed-tools: Read, Write, Glob, WebFetch, mcp__lcsc__*, mcp__kicad-sch__search_symbols, mcp__kicad-sch__list_symbol_libraries, mcp__kicad-sch__get_symbol_info
+allowed-tools: Read, Write, Glob, WebFetch, mcp__jlc__*, mcp__kicad-sch__search_symbols, mcp__kicad-sch__list_symbol_libraries, mcp__kicad-sch__get_symbol_info
 ---
 
 # Component Sourcing: $ARGUMENTS
@@ -38,9 +38,9 @@ For the role **$ARGUMENTS**, ask:
 
 Available MCP tools:
 - `/mcp__kicad-sch__search_symbols` - Search local KiCad symbol libraries (JLCPCB, etc.)
-- `/mcp__lcsc__component_search` - Search LCSC online with `query`, `basic_only`, `in_stock`, `limit`
-- `/mcp__lcsc__component_get` - Get online component details with `lcsc_id`
-- `/mcp__lcsc__library_fetch` - Fetch KiCad symbol/footprint from online
+- `/mcp__jlc__component_search` - Search JLC online with `query`, `basic_only`, `in_stock`, `limit`
+- `/mcp__jlc__component_get` - Get online component details with `lcsc_id`
+- `/mcp__jlc__library_fetch` - Fetch KiCad symbol/footprint from online
 
 **Do NOT use Bash. Do NOT use WebSearch for components.**
 
@@ -65,7 +65,7 @@ Available MCP tools:
 
 For each promising candidate:
 
-1. **Download datasheet** from LCSC (URL pattern: `https://www.lcsc.com/datasheet/<LCSC_NUMBER>.pdf`):
+1. **Download datasheet** from JLC (URL pattern: `https://www.lcsc.com/datasheet/<LCSC_NUMBER>.pdf`):
    ```
    WebFetch("https://www.lcsc.com/datasheet/C12345.pdf", "Download and analyze datasheet")
    ```
@@ -109,7 +109,7 @@ Once selected, handle based on source:
 - Use the symbol reference directly (e.g., `PCM_JLCPCB-MCUs:STM32F103C8T6`)
 - **Skip library_fetch** - component is already in KiCad libraries
 - Get datasheet URL from symbol info if needed
-- Note: Verify current stock/price on LCSC website before ordering
+- Note: Verify current stock/price on JLC website before ordering
 
 **If ONLINE component selected (O1, O2, etc.):**
 - Confirm the choice
@@ -123,7 +123,7 @@ Once selected, handle based on source:
 For online components, fetch the KiCad symbol and footprint:
 
 ```
-/mcp__lcsc__library_fetch lcsc_id="C#####" include_3d=true
+/mcp__jlc__library_fetch lcsc_id="C#####" include_3d=true
 ```
 
 This saves to the **global EDA-MCP library** (automatically discovered by kicad-mcp):
@@ -137,7 +137,7 @@ The response includes:
 
 **For project-local storage** (optional):
 ```
-/mcp__lcsc__library_fetch lcsc_id="C#####" project_path="/path/to/project" include_3d=true
+/mcp__jlc__library_fetch lcsc_id="C#####" project_path="/path/to/project" include_3d=true
 ```
 
 ## Output
@@ -174,7 +174,7 @@ Add entry:
 **KiCad References:**
 - Symbol: `[Library]:[SymbolName]` (e.g., `PCM_JLCPCB-MCUs:STM32F103C8T6` or `EDA-MCP:ESP32-C3`)
 - Footprint: `[Library]:[FootprintName]`
-- Source: LOCAL (existing library) or FETCHED (from LCSC)
+- Source: LOCAL (existing library) or FETCHED (from JLC)
 ```
 
 ### docs/design-constraints.json

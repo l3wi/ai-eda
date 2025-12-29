@@ -1,5 +1,6 @@
 /**
- * LCSC API response types
+ * JLC/LCSC API response types
+ * Note: Interface names keep "LCSC" prefix as they represent LCSC part number formats
  */
 
 export interface LCSCSearchResponse {

@@ -18,11 +18,11 @@
         "zod": "^3.22.0",
       },
     },
-    "packages/lcsc-mcp": {
-      "name": "@ai-eda/lcsc-mcp",
+    "packages/jlc-mcp": {
+      "name": "@ai-eda/jlc-mcp",
       "version": "0.1.0",
       "bin": {
-        "ai-eda-lcsc-mcp": "./dist/index.js",
+        "ai-eda-jlc-mcp": "./dist/index.js",
       },
       "dependencies": {
         "@ai-eda/common": "workspace:*",
@@ -55,7 +55,7 @@
   "packages": {
     "@ai-eda/common": ["@ai-eda/common@workspace:packages/common"],
 
-    "@ai-eda/lcsc-mcp": ["@ai-eda/lcsc-mcp@workspace:packages/lcsc-mcp"],
+    "@ai-eda/jlc-mcp": ["@ai-eda/jlc-mcp@workspace:packages/jlc-mcp"],
 
     "@ai-eda/toolkit": ["@ai-eda/toolkit@workspace:packages/toolkit"],
 

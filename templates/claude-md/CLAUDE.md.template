@@ -55,14 +55,14 @@ This project uses the @ai-eda toolkit with Claude Code. Use these slash commands
 ## MCP Tools
 
 This project has access to:
-- **lcsc**: Component search, datasheet retrieval, library conversion
+- **jlc**: Component search, datasheet retrieval, library conversion
 - **kicad-pcb**: PCB operations (placement, routing, DRC, export)
 - **kicad-sch**: Schematic operations (component placement, wiring)
 
 ### Tool Naming Convention
 - PCB tools: `mcp__kicad-pcb__*` (e.g., `mcp__kicad-pcb__place_component`)
 - Schematic tools: `mcp__kicad-sch__*` (e.g., `mcp__kicad-sch__add_component`)
-- Component tools: `mcp__lcsc__*` (e.g., `mcp__lcsc__search_components`)
+- Component tools: `mcp__jlc__*` (e.g., `mcp__jlc__search_components`)
 
 ## Important Notes
 

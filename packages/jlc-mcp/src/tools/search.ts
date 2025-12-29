@@ -4,11 +4,11 @@
 
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { lcscClient } from '../api/lcsc.js';
+import { jlcClient } from '../api/jlc.js';
 
 export const searchComponentsTool: Tool = {
   name: 'component_search',
-  description: 'Search the LCSC/JLCPCB component database by keyword. Returns a list of matching components with their LCSC IDs, prices, and stock levels.',
+  description: 'Search the JLC/JLCPCB component database by keyword. Returns a list of matching components with their LCSC IDs, prices, and stock levels.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -43,7 +43,7 @@ export const SearchParamsSchema = z.object({
 export async function handleSearchComponents(args: unknown) {
   const params = SearchParamsSchema.parse(args);
 
-  const results = await lcscClient.search(params.query, {
+  const results = await jlcClient.search(params.query, {
     limit: params.limit,
     inStock: params.in_stock,
     basicOnly: params.basic_only,

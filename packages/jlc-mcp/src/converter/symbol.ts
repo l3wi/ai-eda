@@ -115,7 +115,7 @@ export class SymbolConverter {
   private generateHeader(): string {
     return `(kicad_symbol_lib
 \t(version ${KICAD_SYMBOL_VERSION})
-\t(generator "ai-eda-lcsc-mcp")
+\t(generator "ai-eda-jlc-mcp")
 \t(generator_version "9.0")
 `;
   }

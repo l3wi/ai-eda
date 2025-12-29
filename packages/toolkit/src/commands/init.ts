@@ -380,11 +380,11 @@ function createMinimalTemplates(
   // Create .mcp.json
   const mcpConfig: Record<string, unknown> = {
     mcpServers: {
-      lcsc: {
+      jlc: {
         command: 'npx',
-        args: ['-y', '@ai-eda/lcsc-mcp@latest'],
+        args: ['-y', '@ai-eda/jlc-mcp@latest'],
         env: {
-          LCSC_CACHE_DIR: './.cache/lcsc',
+          JLC_CACHE_DIR: './.cache/jlc',
         },
       },
     },

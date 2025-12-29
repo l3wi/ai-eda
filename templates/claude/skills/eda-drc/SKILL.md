@@ -1,7 +1,7 @@
 ---
 name: eda-drc
 description: Design validation and review. Run DRC/ERC checks, verify against constraints, check component availability, and prepare comprehensive validation reports.
-allowed-tools: Read, Write, Glob, WebSearch, mcp__kicad-pcb__run_drc, mcp__kicad-pcb__get_drc_violations, mcp__kicad-pcb__get_design_rules, mcp__kicad-pcb__get_board_info, mcp__kicad-pcb__get_board_2d_view, mcp__lcsc__*
+allowed-tools: Read, Write, Glob, WebSearch, mcp__kicad-pcb__run_drc, mcp__kicad-pcb__get_drc_violations, mcp__kicad-pcb__get_design_rules, mcp__kicad-pcb__get_board_info, mcp__kicad-pcb__get_board_2d_view, mcp__jlc__*
 ---
 
 # EDA DRC Skill

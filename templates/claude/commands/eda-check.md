@@ -1,7 +1,7 @@
 ---
 description: Run design validation checks
 argument-hint: [scope: schematic|pcb|components|manufacturing|full]
-allowed-tools: Read, Write, Glob, WebSearch, mcp__kicad-pcb__run_drc, mcp__kicad-pcb__get_drc_violations, mcp__kicad-pcb__get_design_rules, mcp__kicad-pcb__get_board_info, mcp__lcsc__*
+allowed-tools: Read, Write, Glob, WebSearch, mcp__kicad-pcb__run_drc, mcp__kicad-pcb__get_drc_violations, mcp__kicad-pcb__get_design_rules, mcp__kicad-pcb__get_board_info, mcp__jlc__*
 ---
 
 # Design Validation: $ARGUMENTS

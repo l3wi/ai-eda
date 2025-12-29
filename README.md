@@ -7,7 +7,7 @@ AI-assisted Electronic Design Automation toolkit for KiCad and Claude Code.
 | Package | Description |
 |---------|-------------|
 | [@ai-eda/common](./packages/common) | Shared types, utilities, and constants |
-| [@ai-eda/lcsc-mcp](./packages/lcsc-mcp) | MCP server for LCSC/EasyEDA component sourcing |
+| [@ai-eda/jlc-mcp](./packages/jlc-mcp) | MCP server for JLC/EasyEDA component sourcing |
 | [@ai-eda/kicad-mcp](./packages/kicad-mcp) | MCP server for KiCad automation |
 | [@ai-eda/toolkit](./packages/toolkit) | CLI for project initialization |
 
@@ -23,7 +23,7 @@ cd my-project
 ### Use with Claude Code
 
 The toolkit sets up all necessary configuration for Claude Code, including:
-- MCP servers for KiCad and LCSC integration
+- MCP servers for KiCad and JLC integration
 - Slash commands for the EDA workflow
 - Specialized agents for different design tasks
 

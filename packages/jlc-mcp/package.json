@@ -1,10 +1,10 @@
 {
-  "name": "@ai-eda/lcsc-mcp",
+  "name": "@ai-eda/jlc-mcp",
   "version": "0.1.0",
   "type": "module",
-  "description": "MCP server for LCSC/EasyEDA component sourcing, library fetching, and conversion to KiCad format",
+  "description": "MCP server for JLC/EasyEDA component sourcing, library fetching, and conversion to KiCad format",
   "bin": {
-    "ai-eda-lcsc-mcp": "./dist/index.js"
+    "ai-eda-jlc-mcp": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,7 +18,8 @@
   },
   "keywords": [
     "mcp",
-    "lcsc",
+    "jlcpcb",
+    "jlc",
     "easyeda",
     "kicad",
     "electronics",

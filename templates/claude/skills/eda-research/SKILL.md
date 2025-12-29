@@ -1,7 +1,7 @@
 ---
 name: eda-research
-description: Component research and procurement. Search LCSC for components, analyze datasheets, compare options, and document selections with rationale.
-allowed-tools: Read, Write, WebFetch, WebSearch, Glob, mcp__lcsc__*
+description: Component research and procurement. Search JLC for components, analyze datasheets, compare options, and document selections with rationale.
+allowed-tools: Read, Write, WebFetch, WebSearch, Glob, mcp__jlc__*
 ---
 
 # EDA Research Skill
@@ -57,8 +57,8 @@ Use web search to understand:
 - Known issues or considerations
 - Alternative approaches
 
-### 4. Search LCSC
-Use `mcp__lcsc__component_search` to find candidates:
+### 4. Search JLC
+Use `mcp__jlc__component_search` to find candidates:
 - Search with specific parameters
 - Filter by stock availability
 - Note pricing at target quantity

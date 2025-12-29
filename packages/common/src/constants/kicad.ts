@@ -99,7 +99,7 @@ export const KICAD_PAD_TYPES = [
 
 // Global library configuration
 export const KICAD_LIBRARY_NAME = 'EDA-MCP';
-export const KICAD_LIBRARY_DESCRIPTION = 'AI-EDA Component Library (LCSC/EasyEDA)';
+export const KICAD_LIBRARY_DESCRIPTION = 'AI-EDA Component Library (JLC/EasyEDA)';
 
 // Supported KiCad versions (newest first)
 export const KICAD_VERSIONS = ['9.0', '8.0'] as const;

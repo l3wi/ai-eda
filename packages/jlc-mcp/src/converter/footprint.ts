@@ -46,7 +46,7 @@ export class FootprintConverter {
 
     let output = `(footprint "${name}"
 \t(version ${KICAD_FOOTPRINT_VERSION})
-\t(generator "ai-eda-lcsc-mcp")
+\t(generator "ai-eda-jlc-mcp")
 \t(generator_version "1.0.0")
 \t(layer "${KICAD_LAYERS.F_CU}")
 \t(descr "${this.escapeString(info.description || name)}")

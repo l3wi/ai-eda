@@ -1,12 +1,12 @@
 /**
- * LCSC API client for component search and details
+ * JLC API client for component search and details
  * Uses JLCPCB's parts library API which provides LCSC component data
  */
 
 import type { LCSCSearchOptions, ComponentSearchResult } from '@ai-eda/common';
 import { createLogger } from '@ai-eda/common';
 
-const logger = createLogger('lcsc-api');
+const logger = createLogger('jlc-api');
 
 // JLCPCB parts API - provides LCSC component data with better reliability
 const JLCPCB_SEARCH_API =
@@ -62,9 +62,9 @@ export interface LCSCProduct {
   productIntroEn: string;
 }
 
-export class LCSCClient {
+export class JLCClient {
   /**
-   * Search for components on LCSC via JLCPCB API
+   * Search for components via JLCPCB API
    */
   async search(
     query: string,
@@ -167,4 +167,4 @@ export class LCSCClient {
   }
 }
 
-export const lcscClient = new LCSCClient();
+export const jlcClient = new JLCClient();

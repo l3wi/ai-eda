@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * @ai-eda/lcsc-mcp
- * MCP server for LCSC/EasyEDA component sourcing and library conversion
+ * @ai-eda/jlc-mcp
+ * MCP server for JLC/EasyEDA component sourcing and library conversion
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -15,12 +15,12 @@ import {
 import { tools, toolHandlers } from './tools/index.js';
 import { createLogger } from '@ai-eda/common';
 
-const logger = createLogger('lcsc-mcp');
+const logger = createLogger('jlc-mcp');
 
 // Create MCP server
 const server = new Server(
   {
-    name: '@ai-eda/lcsc-mcp',
+    name: '@ai-eda/jlc-mcp',
     version: '0.1.0',
   },
   {
@@ -69,7 +69,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  logger.info('LCSC MCP server running on stdio');
+  logger.info('JLC MCP server running on stdio');
 }
 
 main().catch((error) => {
