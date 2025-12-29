@@ -1,12 +1,18 @@
 /**
  * Library fetching and conversion tools for MCP
- * Manages a unified LCSC library that accumulates components
+ * Manages a unified EDA-MCP library that accumulates components
+ *
+ * By default, components are stored in global KiCad library paths:
+ * ~/Documents/KiCad/{version}/symbols/EDA-MCP.kicad_sym
+ *
+ * This matches kicad-skip's search pattern for automatic discovery.
  */
 
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { existsSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { readFile } from 'fs/promises';
+import { homedir, platform } from 'os';
 import { easyedaClient } from '../api/easyeda.js';
 import { symbolConverter } from '../converter/symbol.js';
 import { footprintConverter } from '../converter/footprint.js';
@@ -17,10 +23,85 @@ import {
   getFootprintReference,
 } from '../converter/lib-table.js';
 import { ensureDir, writeText, writeBinary } from '@ai-eda/common';
-import { join, dirname } from 'path';
+import { join } from 'path';
 
-const SYMBOL_LIBRARY_NAME = 'LCSC.kicad_sym';
-const FOOTPRINT_LIBRARY_NAME = 'LCSC.pretty';
+// Library naming - matches kicad-skip search pattern
+const LIBRARY_NAME = 'EDA-MCP';
+const SYMBOL_LIBRARY_NAME = `${LIBRARY_NAME}.kicad_sym`;
+const FOOTPRINT_LIBRARY_NAME = `${LIBRARY_NAME}.pretty`;
+const MODELS_3D_NAME = `${LIBRARY_NAME}.3dshapes`;
+
+// KiCad versions to check (newest first)
+const KICAD_VERSIONS = ['9.0', '8.0'];
+
+/**
+ * Detect KiCad major version from existing user directories
+ */
+function detectKicadVersion(): string {
+  const home = homedir();
+  const baseDir = join(home, 'Documents', 'KiCad');
+
+  for (const version of KICAD_VERSIONS) {
+    if (existsSync(join(baseDir, version))) {
+      return version;
+    }
+  }
+  return '9.0'; // Default
+}
+
+/**
+ * Get global library paths for the EDA-MCP library
+ * These paths match kicad-skip's search pattern
+ */
+function getGlobalLibraryPaths(): {
+  base: string;
+  symbolsDir: string;
+  footprintsDir: string;
+  models3dDir: string;
+  symbolFile: string;
+  footprintDir: string;
+  models3dFullDir: string;
+} {
+  const home = homedir();
+  const version = detectKicadVersion();
+  const base = join(home, 'Documents', 'KiCad', version);
+
+  return {
+    base,
+    symbolsDir: join(base, 'symbols'),
+    footprintsDir: join(base, 'footprints'),
+    models3dDir: join(base, '3dmodels'),
+    // Full paths to our specific library
+    symbolFile: join(base, 'symbols', SYMBOL_LIBRARY_NAME),
+    footprintDir: join(base, 'footprints', FOOTPRINT_LIBRARY_NAME),
+    models3dFullDir: join(base, '3dmodels', MODELS_3D_NAME),
+  };
+}
+
+/**
+ * Get project-local library paths (legacy mode)
+ */
+function getProjectLibraryPaths(projectPath: string): {
+  base: string;
+  symbolsDir: string;
+  footprintsDir: string;
+  models3dDir: string;
+  symbolFile: string;
+  footprintDir: string;
+  models3dFullDir: string;
+} {
+  const librariesDir = join(projectPath, 'libraries');
+
+  return {
+    base: librariesDir,
+    symbolsDir: join(librariesDir, 'symbols'),
+    footprintsDir: join(librariesDir, 'footprints'),
+    models3dDir: join(librariesDir, '3dmodels'),
+    symbolFile: join(librariesDir, 'symbols', SYMBOL_LIBRARY_NAME),
+    footprintDir: join(librariesDir, 'footprints', FOOTPRINT_LIBRARY_NAME),
+    models3dFullDir: join(librariesDir, '3dmodels', MODELS_3D_NAME),
+  };
+}
 
 export const getSymbolKicadTool: Tool = {
   name: 'library_get_symbol',
@@ -54,9 +135,13 @@ export const getFootprintKicadTool: Tool = {
 
 export const fetchLibraryTool: Tool = {
   name: 'library_fetch',
-  description: `Fetch an LCSC component and add it to the project's unified LCSC library.
-Creates LCSC.kicad_sym (symbols) and LCSC.pretty/ (footprints) in the libraries folder.
-Automatically updates sym-lib-table and fp-lib-table.
+  description: `Fetch an LCSC component and add it to the EDA-MCP library.
+
+By default, saves to global KiCad library at ~/Documents/KiCad/{version}/symbols/EDA-MCP.kicad_sym.
+This location is automatically discovered by kicad-skip (used by kicad-mcp).
+
+Optionally specify project_path for project-local storage.
+
 Returns symbol_ref and footprint_ref for immediate use with add_schematic_component.`,
   inputSchema: {
     type: 'object',
@@ -67,14 +152,14 @@ Returns symbol_ref and footprint_ref for immediate use with add_schematic_compon
       },
       project_path: {
         type: 'string',
-        description: 'Path to the KiCad project directory (contains .kicad_pro file). Libraries will be created in <project_path>/libraries/',
+        description: 'Optional: Project path for local storage. If omitted, uses global KiCad library.',
       },
       include_3d: {
         type: 'boolean',
         description: 'Include 3D model if available (default: false)',
       },
     },
-    required: ['lcsc_id', 'project_path'],
+    required: ['lcsc_id'],  // project_path is now optional!
   },
 };
 
@@ -104,7 +189,7 @@ export const LibraryParamsSchema = z.object({
 
 export const FetchLibraryParamsSchema = z.object({
   lcsc_id: z.string().regex(/^C\d+$/, 'Invalid LCSC part number'),
-  project_path: z.string().min(1, 'Project path is required'),
+  project_path: z.string().min(1).optional(),  // Optional - uses global if not provided
   include_3d: z.boolean().optional(),
 });
 
@@ -163,7 +248,12 @@ export async function handleGetFootprintKicad(args: unknown) {
 
 export async function handleFetchLibrary(args: unknown) {
   const params = FetchLibraryParamsSchema.parse(args);
-  const projectPath = params.project_path;
+
+  // Determine library location - global (default) or project-local
+  const isGlobal = !params.project_path;
+  const paths = isGlobal
+    ? getGlobalLibraryPaths()
+    : getProjectLibraryPaths(params.project_path!);
 
   // Fetch component data from EasyEDA
   const component = await easyedaClient.getComponentData(params.lcsc_id);
@@ -172,31 +262,29 @@ export async function handleFetchLibrary(args: unknown) {
     return {
       content: [{
         type: 'text' as const,
-        text: `Component ${params.lcsc_id} not found`,
+        text: JSON.stringify({
+          success: false,
+          error: `Component ${params.lcsc_id} not found`,
+          lcsc_id: params.lcsc_id,
+        }),
       }],
       isError: true,
     };
   }
 
-  // Setup library paths
-  const librariesDir = join(projectPath, 'libraries');
-  const symbolsDir = join(librariesDir, 'symbols');
-  const footprintsDir = join(librariesDir, 'footprints', FOOTPRINT_LIBRARY_NAME);
-  const modelsDir = join(librariesDir, '3dmodels', 'LCSC.3dshapes');
-
-  await ensureDir(symbolsDir);
-  await ensureDir(footprintsDir);
+  // Ensure directories exist
+  await ensureDir(paths.symbolsDir);
+  await ensureDir(paths.footprintDir);
 
   // Handle unified symbol library
-  const symbolLibPath = join(symbolsDir, SYMBOL_LIBRARY_NAME);
   const symbolName = symbolConverter.getSymbolName(component);
 
   let symbolContent: string;
   let symbolAction: 'created' | 'appended' | 'exists';
 
-  if (existsSync(symbolLibPath)) {
+  if (existsSync(paths.symbolFile)) {
     // Read existing library
-    const existingContent = await readFile(symbolLibPath, 'utf-8');
+    const existingContent = await readFile(paths.symbolFile, 'utf-8');
 
     // Check if symbol already exists
     if (symbolConverter.symbolExistsInLibrary(existingContent, component.info.name)) {
@@ -215,29 +303,33 @@ export async function handleFetchLibrary(args: unknown) {
 
   // Write symbol library if changed
   if (symbolAction !== 'exists') {
-    await writeText(symbolLibPath, symbolContent);
+    await writeText(paths.symbolFile, symbolContent);
   }
 
   // Generate and save footprint (individual files in .pretty directory)
   const footprint = footprintConverter.convert(component);
   const footprintName = component.footprint.name.replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + params.lcsc_id;
-  const footprintPath = join(footprintsDir, `${footprintName}.kicad_mod`);
+  const footprintPath = join(paths.footprintDir, `${footprintName}.kicad_mod`);
   await writeText(footprintPath, footprint);
 
   // Download 3D model if requested
   let modelPath: string | undefined;
   if (params.include_3d && component.model3d) {
-    await ensureDir(modelsDir);
+    await ensureDir(paths.models3dFullDir);
     const model = await easyedaClient.get3DModel(component.model3d.uuid, 'step');
     if (model) {
-      modelPath = join(modelsDir, `${params.lcsc_id}.step`);
+      modelPath = join(paths.models3dFullDir, `${params.lcsc_id}.step`);
       await writeBinary(modelPath, model);
     }
   }
 
-  // Update sym-lib-table and fp-lib-table
-  const symTableResult = await ensureSymLibTable(projectPath, symbolLibPath);
-  const fpTableResult = await ensureFpLibTable(projectPath, join(librariesDir, 'footprints', FOOTPRINT_LIBRARY_NAME));
+  // Update sym-lib-table and fp-lib-table (only for project-local mode)
+  let symTableResult = null;
+  let fpTableResult = null;
+  if (!isGlobal && params.project_path) {
+    symTableResult = await ensureSymLibTable(params.project_path, paths.symbolFile);
+    fpTableResult = await ensureFpLibTable(params.project_path, paths.footprintDir);
+  }
 
   // Generate references for immediate use
   const symbolRef = getSymbolReference(symbolName);
@@ -249,16 +341,17 @@ export async function handleFetchLibrary(args: unknown) {
       text: JSON.stringify({
         success: true,
         lcsc_id: params.lcsc_id,
+        storage_mode: isGlobal ? 'global' : 'project-local',
         symbol_name: symbolName,
         symbol_ref: symbolRef,
         footprint_ref: footprintRef,
         datasheet: component.info.datasheet || `https://www.lcsc.com/datasheet/lcsc_datasheet_${params.lcsc_id}.pdf`,
         files: {
-          symbol_library: symbolLibPath,
+          symbol_library: paths.symbolFile,
           footprint: footprintPath,
           model_3d: modelPath,
         },
-        library_tables: {
+        library_tables: isGlobal ? null : {
           sym_lib_table: symTableResult,
           fp_lib_table: fpTableResult,
         },

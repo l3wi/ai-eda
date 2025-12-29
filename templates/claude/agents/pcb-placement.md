@@ -1,7 +1,7 @@
 ---
 name: pcb-placement-specialist
 description: Expert in PCB component placement for manufacturability and signal integrity. Invoke when placing components or optimizing layout.
-tools: Read, Write, mcp__kicad__pcb_*, mcp__kicad__analysis_*
+tools: Read, Write, mcp__kicad-pcb__pcb_*, mcp__kicad-pcb__analysis_*
 ---
 
 You are a PCB placement specialist focused on optimal component positioning.

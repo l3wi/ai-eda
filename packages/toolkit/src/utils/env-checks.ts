@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir, platform } from 'os';
 import { isKicadMcpInstalled } from '../commands/kicad-mcp.js';
+import { isKicadSchMcpInstalled } from '../commands/kicad-sch-mcp.js';
 
 export interface CheckResult {
   name: string;
@@ -165,31 +166,52 @@ export function checkKicadIpc(): CheckResult {
 }
 
 /**
- * Check KiCad MCP Server installation
+ * Check KiCad PCB MCP Server installation (mixelpixx/KiCAD-MCP-Server)
  */
 export async function checkKicadMcp(): Promise<CheckResult> {
   const { installed, built } = isKicadMcpInstalled();
 
   if (built) {
     return {
-      name: 'KiCad MCP Server',
+      name: 'KiCad PCB MCP',
       status: 'pass',
-      message: 'Installed (uses KiCad bundled Python)',
+      message: 'Installed (kicad-pcb)',
     };
   }
 
   if (installed) {
     return {
-      name: 'KiCad MCP Server',
+      name: 'KiCad PCB MCP',
       status: 'warn',
-      message: 'Needs build. Run: ai-eda doctor --fix',
+      message: 'Needs build. Run: ai-eda kicad-mcp --install',
     };
   }
 
   return {
-    name: 'KiCad MCP Server',
+    name: 'KiCad PCB MCP',
     status: 'warn',
-    message: 'Not installed. Run: ai-eda doctor --fix',
+    message: 'Not installed. Run: ai-eda kicad-mcp --install',
+  };
+}
+
+/**
+ * Check KiCad Schematic MCP Server installation (mcp-kicad-sch-api)
+ */
+export function checkKicadSchMcp(): CheckResult {
+  const { installed } = isKicadSchMcpInstalled();
+
+  if (installed) {
+    return {
+      name: 'KiCad Schematic MCP',
+      status: 'pass',
+      message: 'Installed (kicad-sch)',
+    };
+  }
+
+  return {
+    name: 'KiCad Schematic MCP',
+    status: 'warn',
+    message: 'Not installed. Run: ai-eda kicad-sch-mcp --install',
   };
 }
 
@@ -233,6 +255,7 @@ export async function runAllChecks(): Promise<CheckResult[]> {
   results.push(await checkKiCad());
   results.push(checkKicadIpc());
   results.push(await checkKicadMcp());
+  results.push(checkKicadSchMcp());
   results.push(await checkNode());
 
   // Add icons

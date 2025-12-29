@@ -96,3 +96,52 @@ export const KICAD_PAD_TYPES = [
   'connect',
   'np_thru_hole',
 ] as const;
+
+// Global library configuration
+export const KICAD_LIBRARY_NAME = 'EDA-MCP';
+export const KICAD_LIBRARY_DESCRIPTION = 'AI-EDA Component Library (LCSC/EasyEDA)';
+
+// Supported KiCad versions (newest first)
+export const KICAD_VERSIONS = ['9.0', '8.0'] as const;
+
+/**
+ * Get global KiCad library paths for a specific platform
+ * Returns paths in the format that kicad-skip's search pattern expects:
+ * ~/Documents/KiCad/{version}/symbols/*.kicad_sym
+ */
+export function getGlobalKicadLibraryPaths(
+  homeDir: string,
+  platform: 'darwin' | 'win32' | 'linux',
+  version: string = '9.0'
+): {
+  base: string;
+  symbols: string;
+  footprints: string;
+  models3d: string;
+} | null {
+  let baseDir: string;
+
+  switch (platform) {
+    case 'darwin':
+      // macOS: ~/Documents/KiCad/9.0/
+      baseDir = `${homeDir}/Documents/KiCad/${version}`;
+      break;
+    case 'win32':
+      // Windows: %USERPROFILE%/Documents/KiCad/9.0/
+      baseDir = `${homeDir}/Documents/KiCad/${version}`;
+      break;
+    case 'linux':
+      // Linux: ~/.local/share/kicad/9.0/ or ~/Documents/KiCad/9.0/
+      baseDir = `${homeDir}/Documents/KiCad/${version}`;
+      break;
+    default:
+      return null;
+  }
+
+  return {
+    base: baseDir,
+    symbols: `${baseDir}/symbols`,
+    footprints: `${baseDir}/footprints`,
+    models3d: `${baseDir}/3dmodels`,
+  };
+}

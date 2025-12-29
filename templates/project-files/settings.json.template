@@ -10,7 +10,8 @@
       "Bash(make:*)",
       "Bash(zip:*)",
       "Bash(git:*)",
-      "mcp__kicad__*",
+      "mcp__kicad-pcb__*",
+      "mcp__kicad-sch__*",
       "mcp__lcsc__*"
     ],
     "deny": [

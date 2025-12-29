@@ -1,7 +1,7 @@
 ---
 description: Interactive PCB layout session
 argument-hint: [phase: setup|place|route|review]
-allowed-tools: Read, Write, Glob, mcp__kicad__*
+allowed-tools: Read, Write, Glob, mcp__kicad-pcb__*
 ---
 
 # PCB Layout: $ARGUMENTS

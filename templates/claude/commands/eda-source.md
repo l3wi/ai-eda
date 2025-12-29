@@ -1,7 +1,7 @@
 ---
 description: Interactive component sourcing session
 argument-hint: [component-role]
-allowed-tools: Read, Write, Glob, WebFetch, mcp__lcsc__*, mcp__kicad__search_symbols, mcp__kicad__list_symbol_libraries, mcp__kicad__get_symbol_info
+allowed-tools: Read, Write, Glob, WebFetch, mcp__lcsc__*, mcp__kicad-sch__search_symbols, mcp__kicad-sch__list_symbol_libraries, mcp__kicad-sch__get_symbol_info
 ---
 
 # Component Sourcing: $ARGUMENTS
@@ -37,7 +37,7 @@ For the role **$ARGUMENTS**, ask:
 **ALWAYS search LOCAL libraries first, then online.**
 
 Available MCP tools:
-- `/mcp__kicad__search_symbols` - Search local KiCad symbol libraries (JLCPCB, etc.)
+- `/mcp__kicad-sch__search_symbols` - Search local KiCad symbol libraries (JLCPCB, etc.)
 - `/mcp__lcsc__component_search` - Search LCSC online with `query`, `basic_only`, `in_stock`, `limit`
 - `/mcp__lcsc__component_get` - Get online component details with `lcsc_id`
 - `/mcp__lcsc__library_fetch` - Fetch KiCad symbol/footprint from online
@@ -48,7 +48,7 @@ Available MCP tools:
 
 1. **First: Local Libraries** - Search installed KiCad libraries
    ```
-   /mcp__kicad__search_symbols query="ESP32" library="JLCPCB"
+   /mcp__kicad-sch__search_symbols query="ESP32" library="JLCPCB"
    ```
    - Searches JLCPCB-KiCad-Library and other installed PCM libraries
    - Components are ready to use immediately (no fetch needed)

@@ -9,15 +9,18 @@
 - `{{PROJECT_NAME}}.kicad_pro`: KiCad project file (in root)
 - `{{PROJECT_NAME}}.kicad_sch`: Schematic
 - `{{PROJECT_NAME}}.kicad_pcb`: PCB layout
-- `sym-lib-table`: Symbol library table (auto-managed)
-- `fp-lib-table`: Footprint library table (auto-managed)
 - `docs/`: Design documentation and specifications
 - `datasheets/`: Component datasheets (PDF)
-- `libraries/`: Project-specific KiCad libraries
-  - `symbols/LCSC.kicad_sym`: Unified LCSC symbol library
-  - `footprints/LCSC.pretty/`: Footprint library
-  - `3dmodels/LCSC.3dshapes/`: 3D models for visualization
 - `production/`: Manufacturing output files (Gerbers, BOM, etc.)
+
+## Component Libraries
+
+Components are stored in the **global EDA-MCP library** at:
+- `~/Documents/KiCad/9.0/symbols/EDA-MCP.kicad_sym` - Unified symbol library
+- `~/Documents/KiCad/9.0/footprints/EDA-MCP.pretty/` - Footprints
+- `~/Documents/KiCad/9.0/3dmodels/EDA-MCP.3dshapes/` - 3D models
+
+This global library is automatically discovered by kicad-mcp and shared across all projects.
 
 ## Design Constraints
 
@@ -53,7 +56,13 @@ This project uses the @ai-eda toolkit with Claude Code. Use these slash commands
 
 This project has access to:
 - **lcsc**: Component search, datasheet retrieval, library conversion
-- **kicad**: KiCad project automation (when available)
+- **kicad-pcb**: PCB operations (placement, routing, DRC, export)
+- **kicad-sch**: Schematic operations (component placement, wiring)
+
+### Tool Naming Convention
+- PCB tools: `mcp__kicad-pcb__*` (e.g., `mcp__kicad-pcb__place_component`)
+- Schematic tools: `mcp__kicad-sch__*` (e.g., `mcp__kicad-sch__add_component`)
+- Component tools: `mcp__lcsc__*` (e.g., `mcp__lcsc__search_components`)
 
 ## Important Notes
 

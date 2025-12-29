@@ -7,11 +7,13 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
+import { configureMcpJson } from './kicad-mcp.js';
 
 export interface UpdateOptions {
   commands: boolean;
   agents: boolean;
   skills: boolean;
+  mcp: boolean;
   all: boolean;
 }
 
@@ -27,7 +29,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
 
   console.log(chalk.bold('\nUpdating project templates...\n'));
 
-  const updateAll = options.all || (!options.commands && !options.agents && !options.skills);
+  const updateAll = options.all || (!options.commands && !options.agents && !options.skills && !options.mcp);
 
   const templatesDir = getTemplatesDir();
   if (!templatesDir) {
@@ -80,6 +82,17 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
       updated += count;
     } else {
       spinner.warn('No skills found in templates');
+    }
+  }
+
+  // Update .mcp.json
+  if (updateAll || options.mcp) {
+    const spinner = ora('Updating .mcp.json...').start();
+    if (configureMcpJson(projectDir)) {
+      spinner.succeed('Updated .mcp.json with kicad-pcb and kicad-sch servers');
+      updated += 1;
+    } else {
+      spinner.warn('Could not update .mcp.json (MCP servers not installed)');
     }
   }
 

@@ -168,6 +168,18 @@ export class EasyEDAClient {
       y: parseFloat(fpDataStr?.head?.y) || 0,
     };
 
+    // Extract attributes from c_para (BOM_ prefixed fields)
+    const attributes: Record<string, string> = {};
+    for (const [key, value] of Object.entries(cPara)) {
+      if (key.startsWith('BOM_') && value && typeof value === 'string') {
+        // Clean up key name: "BOM_Resistance" -> "Resistance"
+        const cleanKey = key.replace(/^BOM_/, '');
+        if (cleanKey !== 'Manufacturer' && cleanKey !== 'JLCPCB Part Class') {
+          attributes[cleanKey] = value;
+        }
+      }
+    }
+
     return {
       info: {
         name: cPara.name || lcscId,
@@ -177,6 +189,9 @@ export class EasyEDAClient {
         datasheet: lcscInfo.url,
         lcscId: lcscInfo.number || lcscId,
         jlcId: cPara['BOM_JLCPCB Part Class'],
+        description: result.title || cPara.name,
+        category: result.category || undefined,
+        attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
       },
       symbol: {
         pins,

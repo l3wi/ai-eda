@@ -1,7 +1,7 @@
 ---
 name: eda-schematics
 description: Schematic capture and wiring. Create schematic sheets, place symbols, add wires and net labels, organize hierarchical designs.
-allowed-tools: Read, Write, Glob, mcp__kicad__create_schematic, mcp__kicad__add_schematic_component, mcp__kicad__add_wire, mcp__kicad__add_schematic_connection, mcp__kicad__add_schematic_net_label, mcp__kicad__connect_to_net, mcp__kicad__get_net_connections, mcp__kicad__generate_netlist
+allowed-tools: Read, Write, Glob, mcp__kicad-sch__create_schematic, mcp__kicad-sch__add_component, mcp__kicad-sch__search_components, mcp__kicad-sch__add_wire, mcp__kicad-sch__add_hierarchical_sheet, mcp__kicad-sch__add_sheet_pin, mcp__kicad-sch__add_hierarchical_label, mcp__kicad-sch__list_components, mcp__kicad-sch__get_schematic_info
 ---
 
 # EDA Schematics Skill
@@ -70,6 +70,15 @@ For each component:
 3. Set value
 4. Add LCSC part number to properties
 5. Position logically
+
+**Tool syntax:**
+```
+mcp__kicad-sch__add_component schematic_path="/path/to/file.kicad_sch" lib_id="EDA-MCP:SymbolName" reference="U1" value="10k" position=[100, 100]
+```
+
+- Use `symbol_ref` from `library_fetch` response (e.g., `EDA-MCP:ESP32-C3`)
+- For standard parts, use KiCad libraries (e.g., `Device:R`, `Device:C`)
+- Position uses grid-aligned coordinates (1.27mm grid)
 
 **Placement guidelines:**
 - Power flows top-to-bottom or left-to-right

@@ -11,9 +11,14 @@ import {
   configureGlobalMcp,
 } from './kicad-mcp.js';
 import {
+  isKicadSchMcpInstalled,
+  installKicadSchMcp,
+} from './kicad-sch-mcp.js';
+import {
   checkKiCad,
   checkKicadIpc,
   checkKicadMcp,
+  checkKicadSchMcp,
   checkNode,
   CheckResult,
   getKicadConfigDir,
@@ -36,6 +41,7 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
   results.push(await checkKiCad());
   results.push(checkKicadIpc());
   results.push(await checkKicadMcp());
+  results.push(checkKicadSchMcp());
   results.push(await checkNode());
   results.push(checkProjectStructure());
 
@@ -75,14 +81,27 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
 
   // Handle --fix option
   if (options.fix) {
-    const { built } = isKicadMcpInstalled();
+    const { built: pcbBuilt } = isKicadMcpInstalled();
+    const { installed: schInstalled } = isKicadSchMcpInstalled();
+    let fixedSomething = false;
 
-    if (!built) {
+    if (!pcbBuilt || !schInstalled) {
       console.log(chalk.bold('Attempting to fix issues...\n'));
 
-      const success = await installKicadMcp({ verbose: options.verbose });
+      // Install PCB MCP if needed
+      if (!pcbBuilt) {
+        const success = await installKicadMcp({ verbose: options.verbose });
+        if (success) fixedSomething = true;
+      }
 
-      if (success) {
+      // Install Schematic MCP if needed
+      if (!schInstalled) {
+        const success = await installKicadSchMcp({ verbose: options.verbose });
+        if (success) fixedSomething = true;
+      }
+
+      // Update global config with both servers
+      if (fixedSomething) {
         console.log(chalk.cyan('Configuring global Claude config...'));
         if (configureGlobalMcp()) {
           console.log(chalk.green('✓ Global Claude MCP config updated'));
@@ -93,8 +112,9 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
     }
     console.log('');
   } else if (warnings.length > 0 || failures.length > 0) {
-    const { built } = isKicadMcpInstalled();
-    if (!built) {
+    const { built: pcbBuilt } = isKicadMcpInstalled();
+    const { installed: schInstalled } = isKicadSchMcpInstalled();
+    if (!pcbBuilt || !schInstalled) {
       console.log(chalk.dim('Run with --fix to automatically install missing components:'));
       console.log(chalk.cyan('  ai-eda doctor --fix'));
       console.log('');

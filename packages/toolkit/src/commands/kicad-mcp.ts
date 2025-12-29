@@ -12,6 +12,7 @@ import { join } from 'path';
 import { homedir, platform } from 'os';
 import chalk from 'chalk';
 import ora from 'ora';
+import { getKicadSchMcpConfig } from './kicad-sch-mcp.js';
 
 const KICAD_MCP_REPO = 'https://github.com/mixelpixx/KiCAD-MCP-Server.git';
 const KICAD_MCP_DIR_NAME = 'kicad-mcp';
@@ -124,21 +125,18 @@ export async function installKicadMcp(options: { verbose?: boolean } = {}): Prom
 }
 
 /**
- * Get the MCP configuration for the KiCad server
+ * Get the MCP configuration for the KiCad PCB server
  */
-export function getKicadMcpConfig(): { command: string; args: string[]; env: Record<string, string> } | null {
+export function getKicadMcpConfig(): { command: string; args: string[]; env?: Record<string, string> } | null {
   const { built, paths } = isKicadMcpInstalled();
 
   if (!built) {
     return null;
   }
 
-  const config: { command: string; args: string[]; env: Record<string, string> } = {
+  const config: { command: string; args: string[]; env?: Record<string, string> } = {
     command: 'node',
     args: [paths.entryPoint],
-    env: {
-      KICAD_PROJECT_DIR: './hardware',
-    },
   };
 
   // On macOS, add homebrew lib path for cairo and other system libraries
@@ -148,7 +146,7 @@ export function getKicadMcpConfig(): { command: string; args: string[]; env: Rec
     const homebrewLib = existsSync('/opt/homebrew/lib')
       ? '/opt/homebrew/lib'
       : '/usr/local/lib';
-    config.env.DYLD_LIBRARY_PATH = homebrewLib;
+    config.env = { DYLD_LIBRARY_PATH: homebrewLib };
   }
 
   return config;
@@ -159,10 +157,11 @@ export function getKicadMcpConfig(): { command: string; args: string[]; env: Rec
  */
 export function configureMcpJson(projectDir: string): boolean {
   const mcpJsonPath = join(projectDir, '.mcp.json');
-  const config = getKicadMcpConfig();
+  const pcbConfig = getKicadMcpConfig();
+  const schConfig = getKicadSchMcpConfig();
 
-  if (!config) {
-    console.error(chalk.red('KiCad MCP server not installed. Run "ai-eda doctor --fix" first.'));
+  if (!pcbConfig && !schConfig) {
+    console.error(chalk.red('No KiCad MCP servers installed. Run "ai-eda doctor --fix" first.'));
     return false;
   }
 
@@ -182,8 +181,22 @@ export function configureMcpJson(projectDir: string): boolean {
     }
   }
 
-  // Update KiCad configuration
-  (mcpConfig.mcpServers as Record<string, unknown>).kicad = config;
+  const servers = mcpConfig.mcpServers as Record<string, unknown>;
+
+  // Remove old 'kicad' key if it exists (renamed to 'kicad-pcb')
+  if ('kicad' in servers) {
+    delete servers.kicad;
+  }
+
+  // Update KiCad PCB configuration
+  if (pcbConfig) {
+    servers['kicad-pcb'] = pcbConfig;
+  }
+
+  // Update KiCad Schematic configuration
+  if (schConfig) {
+    servers['kicad-sch'] = schConfig;
+  }
 
   // Write updated config
   writeFileSync(mcpJsonPath, JSON.stringify(mcpConfig, null, 2));
@@ -204,9 +217,10 @@ export function getGlobalClaudeConfigPath(): string {
 export function configureGlobalMcp(): boolean {
   const globalConfigPath = getGlobalClaudeConfigPath();
   const globalConfigDir = join(homedir(), '.claude');
-  const config = getKicadMcpConfig();
+  const pcbConfig = getKicadMcpConfig();
+  const schConfig = getKicadSchMcpConfig();
 
-  if (!config) {
+  if (!pcbConfig && !schConfig) {
     return false;
   }
 
@@ -230,8 +244,22 @@ export function configureGlobalMcp(): boolean {
     }
   }
 
-  // Update KiCad configuration
-  (globalConfig.mcpServers as Record<string, unknown>).kicad = config;
+  const servers = globalConfig.mcpServers as Record<string, unknown>;
+
+  // Remove old 'kicad' key if it exists (renamed to 'kicad-pcb')
+  if ('kicad' in servers) {
+    delete servers.kicad;
+  }
+
+  // Update KiCad PCB configuration
+  if (pcbConfig) {
+    servers['kicad-pcb'] = pcbConfig;
+  }
+
+  // Update KiCad Schematic configuration
+  if (schConfig) {
+    servers['kicad-sch'] = schConfig;
+  }
 
   // Write updated config
   writeFileSync(globalConfigPath, JSON.stringify(globalConfig, null, 2));

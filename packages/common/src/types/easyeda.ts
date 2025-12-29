@@ -63,6 +63,9 @@ export interface EasyEDAComponentData {
     datasheet?: string;
     lcscId?: string;
     jlcId?: string;
+    description?: string;
+    category?: string;
+    attributes?: Record<string, string>;
   };
   symbol: {
     pins: EasyEDAPin[];

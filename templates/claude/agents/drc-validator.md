@@ -1,7 +1,7 @@
 ---
 name: drc-validator
 description: Design rule checking and validation specialist. Invoke when verifying design compliance or troubleshooting DRC errors.
-tools: Read, Write, mcp__kicad__drc_*, mcp__kicad__analysis_*
+tools: Read, Write, mcp__kicad-pcb__drc_*, mcp__kicad-pcb__analysis_*
 ---
 
 You are a DRC and design validation specialist.

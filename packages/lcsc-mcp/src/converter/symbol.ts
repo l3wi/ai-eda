@@ -190,8 +190,9 @@ export class SymbolConverter {
 \t\t)
 `;
 
-    // Description property
-    props += `\t\t(property "Description" "${this.sanitizeName(info.name)}"
+    // Description property - use actual description if available
+    const description = info.description || info.name;
+    props += `\t\t(property "Description" "${this.sanitizeText(description)}"
 \t\t\t(at 0 0 0)
 \t\t\t(effects
 \t\t\t\t(font
@@ -228,6 +229,36 @@ export class SymbolConverter {
 \t\t\t)
 \t\t)
 `;
+    }
+
+    // Category property
+    if (info.category) {
+      props += `\t\t(property "Category" "${this.sanitizeText(info.category)}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    // Component attributes as custom properties
+    if (info.attributes) {
+      for (const [key, value] of Object.entries(info.attributes)) {
+        props += `\t\t(property "${this.sanitizeText(key)}" "${this.sanitizeText(value)}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+      }
     }
 
     return props;

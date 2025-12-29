@@ -48,9 +48,6 @@ const DIRECTORIES = [
   '.claude/skills',
   'docs',
   'datasheets',
-  'libraries/symbols',
-  'libraries/footprints/LCSC.pretty',
-  'libraries/3dmodels/LCSC.3dshapes',
   'production',
 ];
 
@@ -388,7 +385,6 @@ function createMinimalTemplates(
         args: ['-y', '@ai-eda/lcsc-mcp@latest'],
         env: {
           LCSC_CACHE_DIR: './.cache/lcsc',
-          EASYEDA_OUTPUT_DIR: './libraries',
         },
       },
     },
@@ -446,11 +442,16 @@ AI-assisted EDA project using @ai-eda toolkit.
 - \`${projectName}.kicad_pcb\`: PCB layout
 - \`docs/\`: Design documentation
 - \`datasheets/\`: Component datasheets
-- \`libraries/\`: Project component libraries
-  - \`symbols/LCSC.kicad_sym\`: Unified symbol library
-  - \`footprints/LCSC.pretty/\`: Footprint library
-  - \`3dmodels/LCSC.3dshapes/\`: 3D models
 - \`production/\`: Manufacturing outputs
+
+## Component Libraries
+
+Components are stored in the **global EDA-MCP library** at:
+- \`~/Documents/KiCad/9.0/symbols/EDA-MCP.kicad_sym\` - Unified symbol library
+- \`~/Documents/KiCad/9.0/footprints/EDA-MCP.pretty/\` - Footprints
+- \`~/Documents/KiCad/9.0/3dmodels/EDA-MCP.3dshapes/\` - 3D models
+
+This global library is automatically discovered by kicad-mcp.
 
 ## EDA Workflow
 

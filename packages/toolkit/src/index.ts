@@ -6,7 +6,7 @@
  */
 
 import { Command } from 'commander';
-import { initCommand, doctorCommand, updateCommand, configCommand, kicadIpcCommand, kicadMcpCommand } from './commands/index.js';
+import { initCommand, doctorCommand, updateCommand, configCommand, kicadIpcCommand, kicadMcpCommand, kicadSchMcpCommand } from './commands/index.js';
 
 const program = new Command();
 
@@ -42,16 +42,18 @@ program
 
 program
   .command('update')
-  .description('Update project templates')
+  .description('Update project templates and MCP configuration')
   .option('-c, --commands', 'Update slash commands only')
   .option('-a, --agents', 'Update agents only')
   .option('-s, --skills', 'Update skills only')
+  .option('-m, --mcp', 'Update .mcp.json only')
   .option('--all', 'Update everything')
   .action(async (options) => {
     await updateCommand({
       commands: options.commands,
       agents: options.agents,
       skills: options.skills,
+      mcp: options.mcp,
       all: options.all,
     });
   });
@@ -88,8 +90,8 @@ program
 
 program
   .command('kicad-mcp')
-  .description('Manage KiCad MCP Server for Claude Code integration')
-  .option('-i, --install', 'Install or update KiCad MCP Server')
+  .description('Manage KiCad PCB MCP Server (mixelpixx/KiCAD-MCP-Server)')
+  .option('-i, --install', 'Install or update KiCad PCB MCP Server')
   .option('-u, --update', 'Update existing installation')
   .option('-s, --status', 'Show installation status')
   .option('-g, --configure-global', 'Configure global Claude MCP config')
@@ -99,6 +101,20 @@ program
       update: options.update,
       status: options.status,
       configureGlobal: options.configureGlobal,
+    });
+  });
+
+program
+  .command('kicad-sch-mcp')
+  .description('Manage KiCad Schematic MCP Server (mcp-kicad-sch-api)')
+  .option('-i, --install', 'Install or update KiCad Schematic MCP Server')
+  .option('-u, --update', 'Update existing installation')
+  .option('-s, --status', 'Show installation status')
+  .action(async (options) => {
+    await kicadSchMcpCommand({
+      install: options.install,
+      update: options.update,
+      status: options.status,
     });
   });
 

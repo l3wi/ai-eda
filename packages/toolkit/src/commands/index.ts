@@ -16,3 +16,10 @@ export {
   configureMcpJson,
   configureGlobalMcp,
 } from './kicad-mcp.js';
+export {
+  kicadSchMcpCommand,
+  isKicadSchMcpInstalled,
+  installKicadSchMcp,
+  getKicadSchMcpPaths,
+  getKicadSchMcpConfig,
+} from './kicad-sch-mcp.js';

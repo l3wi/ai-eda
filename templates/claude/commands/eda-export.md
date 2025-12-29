@@ -1,7 +1,7 @@
 ---
 description: Export manufacturing files
 argument-hint: [format: jlcpcb|pcbway|oshpark|generic]
-allowed-tools: Read, Write, Glob, Bash(zip:*), mcp__kicad__export_gerber, mcp__kicad__export_pdf, mcp__kicad__export_bom, mcp__kicad__export_position_file, mcp__kicad__export_3d
+allowed-tools: Read, Write, Glob, Bash(zip:*), mcp__kicad-pcb__export_gerber, mcp__kicad-pcb__export_pdf, mcp__kicad-pcb__export_bom, mcp__kicad-pcb__export_position_file, mcp__kicad-pcb__export_3d
 ---
 
 # Manufacturing Export: $ARGUMENTS

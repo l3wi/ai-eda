@@ -7,8 +7,9 @@ import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 
-const DEFAULT_LIBRARY_NAME = 'LCSC';
-const DEFAULT_LIBRARY_DESCRIPTION = 'LCSC/EasyEDA Component Library';
+// Library configuration - matches kicad-skip's search pattern
+const DEFAULT_LIBRARY_NAME = 'EDA-MCP';
+const DEFAULT_LIBRARY_DESCRIPTION = 'AI-EDA Component Library (LCSC/EasyEDA)';
 
 /**
  * Generate sym-lib-table content

@@ -1,12 +1,54 @@
 ---
 description: Interactive schematic creation session
 argument-hint: [sheet-name or 'start']
-allowed-tools: Read, Write, Glob, mcp__kicad__create_schematic, mcp__kicad__add_schematic_component, mcp__kicad__add_wire, mcp__kicad__add_schematic_connection, mcp__kicad__add_schematic_net_label, mcp__kicad__connect_to_net, mcp__kicad__generate_netlist
+allowed-tools: Read, Write, Glob, mcp__kicad-sch__create_schematic, mcp__kicad-sch__add_component, mcp__kicad-sch__search_components, mcp__kicad-sch__add_wire, mcp__kicad-sch__add_hierarchical_sheet, mcp__kicad-sch__add_sheet_pin, mcp__kicad-sch__add_hierarchical_label, mcp__kicad-sch__list_components, mcp__kicad-sch__get_schematic_info
 ---
 
 # Schematic Creation: $ARGUMENTS
 
 Interactive schematic capture session.
+
+## Tool Reference (kicad-sch MCP)
+
+### Create Schematic
+```
+mcp__kicad-sch__create_schematic path="/path/to/project.kicad_sch"
+```
+
+### Search Components
+```
+mcp__kicad-sch__search_components query="resistor" library="Device"
+```
+
+### Add Component
+```
+mcp__kicad-sch__add_component schematic_path="/path/to/project.kicad_sch" lib_id="Device:R" reference="R1" value="10k" position=[100, 100]
+```
+- `schematic_path`: Full path to .kicad_sch file
+- `lib_id`: Library:SymbolName (e.g., `Device:R`, `EDA-MCP:ESP32-C3`)
+- `reference`: Reference designator (e.g., `R1`, `U1`)
+- `value`: Component value
+- `position`: [x, y] coordinates (grid-aligned, 1.27mm grid)
+
+### Add Wire
+```
+mcp__kicad-sch__add_wire schematic_path="/path/to/project.kicad_sch" start=[100, 100] end=[150, 100]
+```
+
+### Add Hierarchical Label
+```
+mcp__kicad-sch__add_hierarchical_label schematic_path="/path/to/project.kicad_sch" name="VCC_3V3" position=[50, 100]
+```
+
+### List Components
+```
+mcp__kicad-sch__list_components schematic_path="/path/to/project.kicad_sch"
+```
+
+### Get Schematic Info
+```
+mcp__kicad-sch__get_schematic_info schematic_path="/path/to/project.kicad_sch"
+```
 
 ## Context Loading
 

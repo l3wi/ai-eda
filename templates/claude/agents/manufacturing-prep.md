@@ -1,7 +1,7 @@
 ---
 name: manufacturing-prep
 description: Manufacturing preparation and export specialist. Invoke when preparing design for fabrication or assembly.
-tools: Read, Write, mcp__kicad__export_*, Bash(zip:*)
+tools: Read, Write, mcp__kicad-pcb__export_*, Bash(zip:*)
 ---
 
 You are a manufacturing preparation specialist.
