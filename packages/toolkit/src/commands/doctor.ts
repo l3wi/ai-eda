@@ -4,6 +4,7 @@
 
 import { existsSync } from 'fs';
 import { join } from 'path';
+import chalk from 'chalk';
 
 interface CheckResult {
   name: string;
@@ -12,7 +13,7 @@ interface CheckResult {
 }
 
 export async function doctorCommand(): Promise<void> {
-  console.log('\nChecking AI-EDA environment...\n');
+  console.log(chalk.bold('\nChecking AI-EDA environment...\n'));
 
   const results: CheckResult[] = [];
 
@@ -30,24 +31,38 @@ export async function doctorCommand(): Promise<void> {
 
   // Print results
   for (const result of results) {
-    const icon = result.status === 'pass' ? '✓' : result.status === 'warn' ? '⚠' : '✗';
-    const color = result.status === 'pass' ? '\x1b[32m' : result.status === 'warn' ? '\x1b[33m' : '\x1b[31m';
-    console.log(`${color}${icon}\x1b[0m ${result.name}: ${result.message}`);
+    let icon: string;
+    let coloredMessage: string;
+
+    if (result.status === 'pass') {
+      icon = chalk.green('✓');
+      coloredMessage = chalk.dim(result.message);
+    } else if (result.status === 'warn') {
+      icon = chalk.yellow('⚠');
+      coloredMessage = chalk.yellow(result.message);
+    } else {
+      icon = chalk.red('✗');
+      coloredMessage = chalk.red(result.message);
+    }
+
+    console.log(`${icon} ${chalk.bold(result.name)}: ${coloredMessage}`);
   }
 
   const failures = results.filter((r) => r.status === 'fail');
   const warnings = results.filter((r) => r.status === 'warn');
+  const passes = results.filter((r) => r.status === 'pass');
 
   console.log('');
   if (failures.length > 0) {
-    console.log(`\x1b[31m${failures.length} check(s) failed\x1b[0m`);
+    console.log(chalk.red.bold(`${failures.length} check(s) failed`));
   }
   if (warnings.length > 0) {
-    console.log(`\x1b[33m${warnings.length} warning(s)\x1b[0m`);
+    console.log(chalk.yellow(`${warnings.length} warning(s)`));
   }
   if (failures.length === 0 && warnings.length === 0) {
-    console.log('\x1b[32mAll checks passed!\x1b[0m');
+    console.log(chalk.green.bold('All checks passed!'));
   }
+  console.log('');
 }
 
 async function checkKiCad(): Promise<CheckResult> {

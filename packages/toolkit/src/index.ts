@@ -6,7 +6,7 @@
  */
 
 import { Command } from 'commander';
-import { initCommand, doctorCommand, updateCommand } from './commands/index.js';
+import { initCommand, doctorCommand, updateCommand, configCommand } from './commands/index.js';
 
 const program = new Command();
 
@@ -50,6 +50,20 @@ program
       agents: options.agents,
       skills: options.skills,
       all: options.all,
+    });
+  });
+
+program
+  .command('config')
+  .description('Manage project configuration')
+  .option('-s, --set <key=value>', 'Set a configuration value')
+  .option('-g, --get <key>', 'Get a configuration value')
+  .option('-l, --list', 'List all configuration')
+  .action(async (options) => {
+    await configCommand({
+      set: options.set,
+      get: options.get,
+      list: options.list,
     });
   });
 

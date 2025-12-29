@@ -4,57 +4,56 @@
 
 {{PROJECT_DESCRIPTION}}
 
-## Build Commands
-
-- `make drc`: Run design rule checks
-- `make export`: Generate manufacturing files
-- `make bom`: Export bill of materials
-
 ## Project Structure
 
-- `hardware/`: KiCad project files
-- `docs/`: Design documentation
-- `datasheets/`: Component datasheets
-- `libraries/`: Project component libraries
-- `production/`: Manufacturing outputs
+- `hardware/`: KiCad project files (.kicad_pro, .kicad_sch, .kicad_pcb)
+- `docs/`: Design documentation and specifications
+- `datasheets/`: Component datasheets (PDF)
+- `libraries/`: Project-specific KiCad libraries
+  - `symbols/`: Schematic symbols (.kicad_sym)
+  - `footprints/`: PCB footprints (.kicad_mod)
+  - `3dmodels/`: 3D models for visualization
+- `production/`: Manufacturing output files (Gerbers, BOM, etc.)
 
 ## Design Constraints
 
-See `docs/design-constraints.json` for detailed specifications.
-
-## Component Selection
-
-See `docs/component-selections.md` for selected parts and alternatives.
-
-## Current Status
-
-Track progress in `docs/project-status.md`.
+See `docs/design-constraints.json` for specifications including:
+- Board dimensions and layer count
+- Power requirements
+- Environmental constraints
 
 ## EDA Workflow
 
-This project uses @ai-eda toolkit. Available commands:
+This project uses the @ai-eda toolkit with Claude Code. Use these slash commands:
 
-### Specification
-- `/eda-spec` - Define project requirements
+### 1. Specification Phase
+- `/eda-spec` - Define project requirements and constraints
 
-### Component Sourcing
-- `/eda-source [role]` - Source components
-- `/eda-library [part]` - Fetch component libraries
+### 2. Component Sourcing
+- `/eda-source [role]` - Research and select components (e.g., `/eda-source main-mcu`)
+- `/eda-library [part]` - Fetch KiCad libraries from EasyEDA/LCSC
 
-### Schematic
-- `/eda-schematic` - Create schematic
-- `/eda-wiring` - Wire connections
+### 3. Schematic Design
+- `/eda-schematic` - Create and populate schematic
+- `/eda-wiring` - Wire connections between components
 
-### PCB Layout
-- `/eda-pcb-place` - Place components
+### 4. PCB Layout
+- `/eda-pcb-place` - Place components on the PCB
 - `/eda-pcb-route` - Route traces
 
-### Validation & Export
-- `/eda-validate` - Check design
-- `/eda-export` - Generate manufacturing files
+### 5. Validation & Manufacturing
+- `/eda-validate` - Run DRC and verify design
+- `/eda-export [format]` - Generate manufacturing files (jlcpcb, pcbway, oshpark)
 
-## IMPORTANT
+## MCP Tools
+
+This project has access to:
+- **lcsc**: Component search, datasheet retrieval, library conversion
+- **kicad**: KiCad project automation (when available)
+
+## Important Notes
 
 - Always run `/eda-validate` before `/eda-export`
-- Save and commit after each major step
-- Check stock levels before finalizing component selection
+- Check component stock levels before finalizing selections
+- Commit changes after each major milestone
+- Keep datasheets for all selected components

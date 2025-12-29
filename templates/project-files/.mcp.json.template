@@ -1,19 +1,19 @@
 {
   "mcpServers": {
-    "kicad": {
-      "command": "node",
-      "args": ["{{KICAD_MCP_PATH}}/dist/index.js"],
+    "lcsc": {
+      "command": "npx",
+      "args": ["-y", "@ai-eda/lcsc-mcp@latest"],
       "env": {
-        "KICAD_USER_LIBRARY": "{{PROJECT_DIR}}/libraries",
-        "KICAD_PROJECT_DIR": "{{PROJECT_DIR}}/hardware"
+        "LCSC_CACHE_DIR": "./.cache/lcsc",
+        "EASYEDA_OUTPUT_DIR": "./libraries"
       }
     },
-    "lcsc": {
-      "command": "bunx",
-      "args": ["@ai-eda/lcsc-mcp@latest"],
+    "kicad": {
+      "command": "npx",
+      "args": ["-y", "@ai-eda/kicad-mcp@latest"],
       "env": {
-        "LCSC_CACHE_DIR": "{{PROJECT_DIR}}/.cache/lcsc",
-        "EASYEDA_OUTPUT_DIR": "{{PROJECT_DIR}}/libraries"
+        "KICAD_USER_LIBRARY": "./libraries",
+        "KICAD_PROJECT_DIR": "./hardware"
       }
     }
   }
