@@ -9,12 +9,10 @@ import {
   isKicadMcpInstalled,
   installKicadMcp,
   configureGlobalMcp,
-  isUvInstalled,
 } from './kicad-mcp.js';
 import {
   checkKiCad,
   checkKicadIpc,
-  checkUv,
   checkKicadMcp,
   checkNode,
   CheckResult,
@@ -37,7 +35,6 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
   // Run all checks
   results.push(await checkKiCad());
   results.push(checkKicadIpc());
-  results.push(await checkUv());
   results.push(await checkKicadMcp());
   results.push(await checkNode());
   results.push(checkProjectStructure());
@@ -78,19 +75,9 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
 
   // Handle --fix option
   if (options.fix) {
-    const hasUv = await isUvInstalled();
-    const { built, hasVenv } = isKicadMcpInstalled();
-    const needsFix = !built || !hasVenv;
+    const { built } = isKicadMcpInstalled();
 
-    if (!hasUv) {
-      console.log(chalk.yellow.bold('UV is required for --fix to work.\n'));
-      console.log('Install UV first:');
-      console.log(chalk.cyan('  curl -LsSf https://astral.sh/uv/install.sh | sh'));
-      console.log('');
-      return;
-    }
-
-    if (needsFix) {
+    if (!built) {
       console.log(chalk.bold('Attempting to fix issues...\n'));
 
       const success = await installKicadMcp({ verbose: options.verbose });
@@ -106,8 +93,8 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
     }
     console.log('');
   } else if (warnings.length > 0 || failures.length > 0) {
-    const { built, hasVenv } = isKicadMcpInstalled();
-    if (!built || !hasVenv) {
+    const { built } = isKicadMcpInstalled();
+    if (!built) {
       console.log(chalk.dim('Run with --fix to automatically install missing components:'));
       console.log(chalk.cyan('  ai-eda doctor --fix'));
       console.log('');

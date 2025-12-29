@@ -6,10 +6,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir, platform } from 'os';
-import {
-  isKicadMcpInstalled,
-  isUvInstalled,
-} from '../commands/kicad-mcp.js';
+import { isKicadMcpInstalled } from '../commands/kicad-mcp.js';
 
 export interface CheckResult {
   name: string;
@@ -168,55 +165,16 @@ export function checkKicadIpc(): CheckResult {
 }
 
 /**
- * Check UV installation
- */
-export async function checkUv(): Promise<CheckResult> {
-  const hasUv = await isUvInstalled();
-
-  if (hasUv) {
-    try {
-      const { execSync } = await import('child_process');
-      const version = execSync('uv --version', { encoding: 'utf-8' }).trim();
-      return {
-        name: 'UV',
-        status: 'pass',
-        message: version,
-      };
-    } catch {
-      return {
-        name: 'UV',
-        status: 'pass',
-        message: 'Installed',
-      };
-    }
-  }
-
-  return {
-    name: 'UV',
-    status: 'warn',
-    message: 'Not installed. Run: curl -LsSf https://astral.sh/uv/install.sh | sh',
-  };
-}
-
-/**
- * Check KiCad MCP Server installation (includes venv check)
+ * Check KiCad MCP Server installation
  */
 export async function checkKicadMcp(): Promise<CheckResult> {
-  const { installed, built, hasVenv } = isKicadMcpInstalled();
+  const { installed, built } = isKicadMcpInstalled();
 
-  if (built && hasVenv) {
+  if (built) {
     return {
       name: 'KiCad MCP Server',
       status: 'pass',
-      message: 'Installed with Python venv',
-    };
-  }
-
-  if (built && !hasVenv) {
-    return {
-      name: 'KiCad MCP Server',
-      status: 'warn',
-      message: 'Missing Python venv. Run: ai-eda doctor --fix',
+      message: 'Installed (uses KiCad bundled Python)',
     };
   }
 
@@ -274,7 +232,6 @@ export async function runAllChecks(): Promise<CheckResult[]> {
 
   results.push(await checkKiCad());
   results.push(checkKicadIpc());
-  results.push(await checkUv());
   results.push(await checkKicadMcp());
   results.push(await checkNode());
 
