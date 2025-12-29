@@ -27,9 +27,11 @@ ai-eda/
 │
 ├── packages/
 │   ├── toolkit/                 # @ai-eda/toolkit - Main CLI
-│   ├── kicad-mcp/              # @ai-eda/kicad-mcp - KiCad MCP server
 │   ├── lcsc-mcp/               # @ai-eda/lcsc-mcp - LCSC + EasyEDA MCP server
 │   └── common/                  # @ai-eda/common - Shared types/utils
+│
+├── external/                    # External MCP servers (not in monorepo)
+│   └── KiCAD-MCP-Server/       # mixelpixx/KiCAD-MCP-Server (uses kicad-skip)
 │
 ├── templates/                   # Template files for project initialization
 │   ├── claude/
@@ -284,136 +286,98 @@ export interface EasyEDAFootprint {
 
 ---
 
-<!--
-## Phase 3: @ai-eda/kicad-mcp Package
+## Phase 3: KiCad MCP Server (External)
 
-NOTE: COMMENTED OUT - Using vanilla KiCad MCP server (mixelpixx/KiCAD-MCP-Server) instead.
-      This phase can be revisited later if custom KiCad MCP functionality is needed.
+### 3.1 Architecture Decision
 
-### 3.1 Purpose
-MCP server for KiCad automation. Fork and extend https://github.com/mixelpixx/KiCAD-MCP-Server
+**Decision**: Use the external [mixelpixx/KiCAD-MCP-Server](https://github.com/mixelpixx/KiCAD-MCP-Server)
+instead of building a custom `@ai-eda/kicad-mcp` package.
 
-### 3.2 Structure
+**Rationale**:
+- The mixelpixx server provides 52+ tools for comprehensive KiCad automation
+- It uses [kicad-skip](https://github.com/psychogenic/kicad-skip) for schematic manipulation
+- Building equivalent functionality in TypeScript would duplicate significant effort
+- The server is actively maintained and production-ready
 
-```
-packages/kicad-mcp/
-├── package.json
-├── tsconfig.json
-├── src/
-│   ├── index.ts              # MCP server entry point
-│   ├── server.ts             # MCP server setup
-│   ├── tools/
-│   │   ├── index.ts
-│   │   ├── project.ts        # Project management tools
-│   │   ├── schematic.ts      # Schematic manipulation
-│   │   ├── pcb.ts            # PCB layout tools
-│   │   ├── library.ts        # Library management
-│   │   ├── export.ts         # Gerber/BOM/position file export
-│   │   ├── drc.ts            # Design rule checking
-│   │   └── screenshot.ts     # Visual capture for AI analysis
-│   ├── kicad/
-│   │   ├── cli.ts            # KiCad CLI wrapper (kicad-cli)
-│   │   ├── parser.ts         # .kicad_sch/.kicad_pcb file parsing
-│   │   ├── writer.ts         # File writing/modification
-│   │   └── python-bridge.ts  # Bridge to KiCad Python API if needed
-│   └── utils/
-│       ├── process.ts        # Process spawning helpers
-│       └── paths.ts          # KiCad installation detection
-```
+### 3.2 Capabilities (via mixelpixx/KiCAD-MCP-Server)
 
-### 3.3 MCP Tools to Implement
+**Schematic Tools** (powered by kicad-skip):
+- `create_schematic` - Initialize new schematic files
+- `load_schematic` - Open existing schematics
+- `add_schematic_component` - Place symbols from libraries
+- `add_schematic_wire` - Connect component pins
+- `list_schematic_libraries` - Browse available symbol libraries
+- `export_schematic_pdf` - Generate PDF documentation
 
-Reference the existing KiCad MCP and extend with:
+**PCB Tools**:
+- 10 component placement tools
+- 8 routing tools
+- Design rule checks
+- Export capabilities (Gerber, PDF, SVG)
 
-```typescript
-// Core tools from fork:
-- create_project
-- open_project
-- save_project
-- get_project_info
-- set_board_size
-- add_layer
-- get_board_info
-- place_component
-- move_component
-- rotate_component
-- delete_component
-- route_trace
-- add_via
-- add_zone
-- run_drc
-- export_gerber
-- export_bom
-- get_board_2d_view (screenshot)
+**Requirements**:
+- KiCad 9.0+ with Python module installed
+- Node.js v18+
+- Python dependencies: `kicad-skip>=0.1.0`, `Pillow`, `cairosvg`, `pydantic`
 
-// Additional tools to implement:
-export const additionalTools = {
-  // Library Management
-  "library:list": "List available symbol/footprint libraries",
-  "library:search": "Search for component in libraries",
-  "library:add_symbol": "Add symbol to project library",
-  "library:add_footprint": "Add footprint to project library",
-  "library:import_easyeda": "Import EasyEDA component (calls lcsc-mcp)",
+### 3.3 kicad-skip Library
 
-  // Schematic Tools
-  "schematic:create_sheet": "Create new schematic sheet",
-  "schematic:add_net_label": "Add net label at position",
-  "schematic:connect_pins": "Connect two component pins",
-  "schematic:add_power_symbol": "Add power/ground symbol",
-  "schematic:run_erc": "Run electrical rules check",
-  "schematic:get_unconnected": "List unconnected pins",
-  "schematic:annotate": "Auto-annotate component references",
-  "schematic:organize_page": "Reorganize components on page",
+The schematic manipulation is powered by [kicad-skip](https://pypi.org/project/kicad-skip/),
+a Python library for KiCad s-expression file manipulation:
 
-  // PCB Tools
-  "pcb:set_stackup": "Define layer stackup",
-  "pcb:add_mounting_hole": "Add mounting hole",
-  "pcb:set_design_rules": "Set DRC rules",
-  "pcb:create_zone": "Create copper pour zone",
-  "pcb:auto_place": "Auto-place components (basic)",
-  "pcb:get_ratsnest": "Get unrouted connections",
-  "pcb:check_placement": "Validate component placement",
+```python
+from skip import Schematic
 
-  // Analysis Tools
-  "analysis:screenshot": "Capture board/schematic image",
-  "analysis:get_statistics": "Get board statistics (trace length, via count, etc)",
-  "analysis:check_clearances": "Check specific clearance violations",
+# Load and manipulate schematics
+schem = Schematic('/path/to/project.kicad_sch')
 
-  // Export Tools
-  "export:gerber_zip": "Export Gerbers as ZIP for manufacturing",
-  "export:pick_place": "Export pick and place file",
-  "export:step": "Export 3D STEP model",
-  "export:pdf": "Export schematic/PCB as PDF"
-};
+# Access components by reference
+resistor = schem.symbol.R14
+resistor.value = "10k"
+
+# Search for symbols
+caps = schem.symbol.by_regex("C\\d+")
+
+# Add wires, labels, junctions
+schem.wire.add(start_point, end_point)
 ```
 
-### 3.4 package.json
+Key capabilities:
+- Explore, modify, and create schematic elements
+- Search symbols by reference, value, or location
+- Access pin locations for automated wiring
+- Clone and modify existing components
+- Full read/write support for `.kicad_sch` files
+
+### 3.4 Installation
+
+```bash
+# Clone the server
+git clone https://github.com/mixelpixx/KiCAD-MCP-Server.git
+
+# Install dependencies
+cd KiCAD-MCP-Server
+npm install
+pip install kicad-skip Pillow cairosvg pydantic
+```
+
+### 3.5 Configuration
+
+Configure in `.mcp.json` (see Phase 9 for template):
 
 ```json
 {
-  "name": "@ai-eda/kicad-mcp",
-  "version": "0.1.0",
-  "type": "module",
-  "bin": {
-    "ai-eda-kicad-mcp": "./dist/index.js"
-  },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target node",
-    "start": "bun run ./src/index.ts",
-    "dev": "bun --watch ./src/index.ts",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@ai-eda/common": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "zod": "^3.22.0"
+  "mcpServers": {
+    "kicad": {
+      "command": "node",
+      "args": ["/path/to/KiCAD-MCP-Server/dist/index.js"],
+      "env": {
+        "KICAD_PROJECT_DIR": "{{PROJECT_DIR}}/hardware"
+      }
+    }
   }
 }
 ```
-
-END OF COMMENTED SECTION -->
 
 ---
 
@@ -2385,15 +2349,12 @@ This project uses @ai-eda toolkit. Available commands:
 8. Create MCP server with all tools
 9. Test with HLK-7621 (140 pins/pads) - PASSED
 
-### Week 3: KiCad MCP - SKIPPED
-~~9. Fork mixelpixx/KiCAD-MCP-Server~~
-~~10. Extend with additional tools~~
-~~11. Add schematic manipulation tools~~
-~~12. Add screenshot/analysis tools~~
-~~13. Test with real KiCad projects~~
-
-**NOTE:** Using vanilla KiCad MCP server (mixelpixx/KiCAD-MCP-Server) instead.
-Configure in .mcp.json to use the existing server.
+### Week 3: KiCad Integration ✅ ARCHITECTURE DECISION
+9. Evaluated custom @ai-eda/kicad-mcp vs external server
+10. **Decision**: Use vanilla [mixelpixx/KiCAD-MCP-Server](https://github.com/mixelpixx/KiCAD-MCP-Server)
+11. Server uses [kicad-skip](https://github.com/psychogenic/kicad-skip) for schematic manipulation
+12. Removed @ai-eda/kicad-mcp package from monorepo
+13. Updated templates to reference external KiCad MCP server
 
 ### Week 3: Toolkit CLI (was Week 4)
 10. Build CLI scaffold
@@ -2411,7 +2372,9 @@ Configure in .mcp.json to use the existing server.
 ## Appendix: Reference Links
 
 ### KiCad
-- https://github.com/mixelpixx/KiCAD-MCP-Server (fork base)
+- https://github.com/mixelpixx/KiCAD-MCP-Server (external MCP server)
+- https://github.com/psychogenic/kicad-skip (schematic manipulation library)
+- https://pypi.org/project/kicad-skip/ (PyPI package)
 - https://dev-docs.kicad.org/en/python/pcbnew/
 - https://docs.kicad.org/master/en/cli/cli.html
 

@@ -9,12 +9,14 @@
       }
     },
     "kicad": {
-      "command": "npx",
-      "args": ["-y", "@ai-eda/kicad-mcp@latest"],
+      "command": "node",
+      "args": ["{{KICAD_MCP_PATH}}/dist/index.js"],
       "env": {
-        "KICAD_USER_LIBRARY": "./libraries",
         "KICAD_PROJECT_DIR": "./hardware"
       }
     }
+  },
+  "_comments": {
+    "kicad": "Replace {{KICAD_MCP_PATH}} with your local clone of https://github.com/mixelpixx/KiCAD-MCP-Server"
   }
 }
