@@ -35,40 +35,54 @@ For the role **$ARGUMENTS**, ask:
 ### 2. Search LCSC (PRIMARY SOURCE)
 
 **ALWAYS use LCSC MCP tools first** - this is your primary component database:
+
 ```
+# Step 1: Search for components
 mcp__lcsc__component_search("<search terms>")
-mcp__lcsc__get_component_details("<lcsc_part_number>")
+
+# Step 2: Get details for promising candidates (includes datasheet URL)
+mcp__lcsc__component_get("<lcsc_part_number>")
 ```
 
 **Do NOT use WebSearch for finding components** - the LCSC MCP has real-time stock, pricing, and specifications.
 
 Focus on:
-- In-stock components
+- In-stock components (check `stock` field)
+- Note pricing at quantity (`price` field)
 - JLCPCB Basic parts (when suitable)
-- Good price at target quantity
 
-### 3. Supplementary Research (only if needed)
+### 3. Download and Analyze Datasheets
 
-Only use WebSearch/WebFetch if:
-- Need application circuit from datasheet
-- Looking for reference designs
-- LCSC has no suitable options (rare)
+For each promising candidate:
+
+1. **Download datasheet** from LCSC (URL pattern: `https://www.lcsc.com/datasheet/<LCSC_NUMBER>.pdf`):
+   ```
+   WebFetch("https://www.lcsc.com/datasheet/C12345.pdf", "Download and analyze datasheet")
+   ```
+2. **Save locally** to `datasheets/<LCSC_NUMBER>_<MPN>.pdf`
+3. **Read and extract** key info:
+   - Typical application circuit
+   - Recommended external components
+   - Layout guidelines (thermal pads, decoupling placement)
+   - Absolute maximum ratings
+   - Key electrical specs
 
 ### 4. Present Options
 
 Show a comparison table with 3-5 options:
 
-| Option | MPN | Key Specs | Price | Stock | Notes |
-|--------|-----|-----------|-------|-------|-------|
-| 1 (Rec)| ... | ... | $X.XX | #### | Why recommended |
-| 2 | ... | ... | $X.XX | #### | Alternative reason |
-| 3 | ... | ... | $X.XX | #### | Budget option |
+| Option | LCSC # | MPN | Key Specs | Price | Stock | Datasheet |
+|--------|--------|-----|-----------|-------|-------|-----------|
+| 1 (Rec)| C##### | ... | ... | $X.XX | #### | [link] |
+| 2 | C##### | ... | ... | $X.XX | #### | [link] |
+| 3 | C##### | ... | ... | $X.XX | #### | [link] |
 
-Include:
-- LCSC part number
+Include for each option:
+- **LCSC part number** (required for ordering)
 - Key specifications relevant to the role
 - Price at target quantity
-- Stock status
+- Current stock level
+- Link to downloaded datasheet
 - Pros and cons
 
 ### 5. Get Selection
@@ -88,21 +102,28 @@ Update these files:
 
 Add entry:
 ```markdown
-### [Role]: [Part Name] ([LCSC#])
+### [Role]: [Part Name]
 
-**Selected:** [Date]
+**LCSC:** C##### (link to LCSC page)
 **MPN:** [Manufacturer Part Number]
-**Price:** $X.XX @ [qty]
+**Manufacturer:** [Name]
+**Package:** [Package type]
 
-**Specifications:**
-- Key spec 1
-- Key spec 2
+**Stock:** #### units (as of [date])
+**Price:** $X.XX @ [qty] | $X.XX @ [qty]
 
-**Rationale:** [Why chosen]
+**Key Specifications:**
+- Spec 1: value
+- Spec 2: value
 
-**Design Notes:** [From datasheet - layout, decoupling, etc.]
+**Rationale:** [Why chosen over alternatives]
 
-**Datasheet:** datasheets/[filename].pdf
+**Design Notes:** (from datasheet)
+- Application circuit components
+- Layout recommendations
+- Thermal considerations
+
+**Datasheet:** `datasheets/C#####_[MPN].pdf`
 ```
 
 ### docs/design-constraints.json
