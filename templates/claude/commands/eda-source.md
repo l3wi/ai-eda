@@ -91,8 +91,25 @@ Ask user to choose or request more options.
 
 Once selected:
 - Confirm the choice
-- Download/note datasheet location
-- Document any design notes from datasheet
+- Download datasheet if not already done
+- Document design notes from datasheet
+
+### 6. Fetch KiCad Libraries
+
+After user confirms selection, fetch the KiCad symbol and footprint:
+
+```
+mcp__lcsc__library_fetch({
+  "lcsc_id": "C#####",
+  "output_dir": "./libraries",
+  "include_3d": true
+})
+```
+
+This saves:
+- `libraries/symbols/<LCSC_ID>.kicad_sym` - Schematic symbol
+- `libraries/footprints/LCSC.pretty/<NAME>_<LCSC_ID>.kicad_mod` - PCB footprint
+- `libraries/3dmodels/LCSC.3dshapes/<LCSC_ID>.step` - 3D model (if available)
 
 ## Output
 
@@ -124,6 +141,11 @@ Add entry:
 - Thermal considerations
 
 **Datasheet:** `datasheets/C#####_[MPN].pdf`
+
+**KiCad Libraries:**
+- Symbol: `libraries/symbols/C#####.kicad_sym`
+- Footprint: `libraries/footprints/LCSC.pretty/[NAME]_C#####.kicad_mod`
+- 3D Model: `libraries/3dmodels/LCSC.3dshapes/C#####.step`
 ```
 
 ### docs/design-constraints.json
