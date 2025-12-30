@@ -23,7 +23,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   // Check if we're in a project directory
   if (!existsSync(join(projectDir, 'CLAUDE.md')) && !existsSync(join(projectDir, '.mcp.json'))) {
     console.error(chalk.red('Error: Not in an AI-EDA project directory'));
-    console.error('Run this command from a project created with "ai-eda init"');
+    console.error('Run this command from a project created with "claude-eda init"');
     process.exit(1);
   }
 
@@ -34,7 +34,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   const templatesDir = getTemplatesDir();
   if (!templatesDir) {
     console.error(chalk.red('Error: Could not find templates directory'));
-    console.error('Make sure ai-eda is installed correctly');
+    console.error('Make sure claude-eda is installed correctly');
     process.exit(1);
   }
 

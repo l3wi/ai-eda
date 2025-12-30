@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * ai-eda
+ * claude-eda
  * CLI for AI-assisted EDA project initialization and management
  */
 
@@ -11,7 +11,7 @@ import { initCommand, doctorCommand, updateCommand, configCommand, kicadIpcComma
 const program = new Command();
 
 program
-  .name('ai-eda')
+  .name('claude-eda')
   .description('AI-assisted EDA toolkit for KiCad and Claude Code')
   .version('0.1.0');
 

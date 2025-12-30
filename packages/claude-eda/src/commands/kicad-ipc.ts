@@ -102,7 +102,7 @@ function showStatus(version: string, configPath: string): void {
 
   if (!enabled) {
     console.log(chalk.yellow('To enable IPC API, run:'));
-    console.log(chalk.cyan('  ai-eda kicad-ipc --enable'));
+    console.log(chalk.cyan('  claude-eda kicad-ipc --enable'));
     console.log('');
   }
 

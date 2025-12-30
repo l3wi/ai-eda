@@ -1,10 +1,10 @@
 {
-  "name": "ai-eda",
+  "name": "claude-eda",
   "version": "0.1.0",
   "type": "module",
-  "description": "CLI for AI-assisted EDA project initialization and management",
+  "description": "CLI for AI-assisted EDA project initialization and management with KiCad",
   "bin": {
-    "ai-eda": "./dist/index.js"
+    "claude-eda": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

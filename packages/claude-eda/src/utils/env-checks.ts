@@ -183,14 +183,14 @@ export async function checkKicadMcp(): Promise<CheckResult> {
     return {
       name: 'KiCad PCB MCP',
       status: 'warn',
-      message: 'Needs build. Run: ai-eda kicad-mcp --install',
+      message: 'Needs build. Run: claude-eda kicad-mcp --install',
     };
   }
 
   return {
     name: 'KiCad PCB MCP',
     status: 'warn',
-    message: 'Not installed. Run: ai-eda kicad-mcp --install',
+    message: 'Not installed. Run: claude-eda kicad-mcp --install',
   };
 }
 
@@ -211,7 +211,7 @@ export function checkKicadSchMcp(): CheckResult {
   return {
     name: 'KiCad Schematic MCP',
     status: 'warn',
-    message: 'Not installed. Run: ai-eda kicad-sch-mcp --install',
+    message: 'Not installed. Run: claude-eda kicad-sch-mcp --install',
   };
 }
 

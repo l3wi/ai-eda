@@ -169,7 +169,7 @@ export async function initCommand(
   const hasWarnings = envResults.some((r) => r.status === 'warn' || r.status === 'fail');
   if (hasWarnings && !options.yes) {
     p.log.message('');
-    p.log.warn(`Some tools are missing. Run ${chalk.cyan('ai-eda doctor --fix')} to install them.`);
+    p.log.warn(`Some tools are missing. Run ${chalk.cyan('claude-eda doctor --fix')} to install them.`);
     p.log.message('');
 
     const continueResult = await p.confirm({
@@ -219,7 +219,7 @@ export async function initCommand(
   if (configureMcpJson(projectDir)) {
     mcpSpinner.stop('Configured MCP servers');
   } else {
-    mcpSpinner.stop('MCP configuration skipped (run ai-eda doctor --fix)');
+    mcpSpinner.stop('MCP configuration skipped (run claude-eda doctor --fix)');
   }
 
   // Initialize git
@@ -262,7 +262,7 @@ function printNextSteps(projectName: string, projectDir: string): void {
   console.log(`  ${chalk.cyan('/eda-check')}      Validate design`);
   console.log(`  ${chalk.cyan('/eda-export')}     Export for manufacturing`);
   console.log('');
-  console.log(chalk.dim(`  Need help? Run: ai-eda doctor`));
+  console.log(chalk.dim(`  Need help? Run: claude-eda doctor`));
   console.log('');
 }
 
@@ -433,7 +433,7 @@ production/*.zip
 
 ## Project Overview
 
-AI-assisted EDA project using @ai-eda toolkit.
+AI-assisted EDA project using @claude-eda toolkit.
 
 ## Project Structure
 

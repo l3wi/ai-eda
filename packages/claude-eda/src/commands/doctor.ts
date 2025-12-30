@@ -116,7 +116,7 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
     const { installed: schInstalled } = isKicadSchMcpInstalled();
     if (!pcbBuilt || !schInstalled) {
       console.log(chalk.dim('Run with --fix to automatically install missing components:'));
-      console.log(chalk.cyan('  ai-eda doctor --fix'));
+      console.log(chalk.cyan('  claude-eda doctor --fix'));
       console.log('');
     }
   }
@@ -148,6 +148,6 @@ function checkProjectStructure(): CheckResult {
   return {
     name: 'Project Structure',
     status: 'warn',
-    message: 'Not in an AI-EDA project. Use "ai-eda init" to create one.',
+    message: 'Not in an AI-EDA project. Use "claude-eda init" to create one.',
   };
 }

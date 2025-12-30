@@ -2,7 +2,7 @@
  * KiCad Schematic MCP Server installation and management
  *
  * Handles installation of mcp-kicad-sch-api Python package
- * to ~/.ai-eda/kicad-sch-venv for use with Claude Code.
+ * to ~/.claude-eda/kicad-sch-venv for use with Claude Code.
  *
  * Uses kicad-sch-api library for schematic file manipulation.
  * Source: https://github.com/circuit-synth/mcp-kicad-sch-api
@@ -18,16 +18,16 @@ const KICAD_SCH_VENV_NAME = 'kicad-sch-venv';
 const KICAD_SCH_PACKAGE = 'kicad-sch-api';
 
 export interface KicadSchMcpPaths {
-  baseDir: string;       // ~/.ai-eda
-  venvDir: string;       // ~/.ai-eda/kicad-sch-venv
-  pythonPath: string;    // ~/.ai-eda/kicad-sch-venv/bin/python (or Scripts/python.exe on Windows)
+  baseDir: string;       // ~/.claude-eda
+  venvDir: string;       // ~/.claude-eda/kicad-sch-venv
+  pythonPath: string;    // ~/.claude-eda/kicad-sch-venv/bin/python (or Scripts/python.exe on Windows)
 }
 
 /**
  * Get the paths for the KiCad Schematic MCP installation
  */
 export function getKicadSchMcpPaths(): KicadSchMcpPaths {
-  const baseDir = join(homedir(), '.ai-eda');
+  const baseDir = join(homedir(), '.claude-eda');
   const venvDir = join(baseDir, KICAD_SCH_VENV_NAME);
 
   // Python path differs between Windows and Unix
@@ -196,7 +196,7 @@ export async function kicadSchMcpCommand(options: {
 
     if (!installed) {
       console.log(chalk.yellow('To install, run:'));
-      console.log(chalk.cyan('  ai-eda kicad-sch-mcp --install'));
+      console.log(chalk.cyan('  claude-eda kicad-sch-mcp --install'));
       console.log('');
     }
 

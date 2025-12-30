@@ -2,7 +2,7 @@
  * KiCad MCP Server installation and management
  *
  * Handles installation of the external mixelpixx/KiCAD-MCP-Server
- * to ~/.ai-eda/kicad-mcp for use with Claude Code.
+ * to ~/.claude-eda/kicad-mcp for use with Claude Code.
  *
  * The MCP server uses KiCad's bundled Python which includes the pcbnew module.
  */
@@ -18,17 +18,17 @@ const KICAD_MCP_REPO = 'https://github.com/mixelpixx/KiCAD-MCP-Server.git';
 const KICAD_MCP_DIR_NAME = 'kicad-mcp';
 
 export interface KicadMcpPaths {
-  baseDir: string;       // ~/.ai-eda
-  mcpDir: string;        // ~/.ai-eda/kicad-mcp
-  distDir: string;       // ~/.ai-eda/kicad-mcp/dist
-  entryPoint: string;    // ~/.ai-eda/kicad-mcp/dist/index.js
+  baseDir: string;       // ~/.claude-eda
+  mcpDir: string;        // ~/.claude-eda/kicad-mcp
+  distDir: string;       // ~/.claude-eda/kicad-mcp/dist
+  entryPoint: string;    // ~/.claude-eda/kicad-mcp/dist/index.js
 }
 
 /**
  * Get the paths for the KiCad MCP installation
  */
 export function getKicadMcpPaths(): KicadMcpPaths {
-  const baseDir = join(homedir(), '.ai-eda');
+  const baseDir = join(homedir(), '.claude-eda');
   const mcpDir = join(baseDir, KICAD_MCP_DIR_NAME);
   const distDir = join(mcpDir, 'dist');
   const entryPoint = join(distDir, 'index.js');
@@ -322,7 +322,7 @@ export async function kicadMcpCommand(options: {
 
     if (!built) {
       console.log(chalk.yellow('To install, run:'));
-      console.log(chalk.cyan('  ai-eda kicad-mcp --install'));
+      console.log(chalk.cyan('  claude-eda kicad-mcp --install'));
       console.log('');
     }
 

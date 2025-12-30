@@ -25,7 +25,7 @@ export async function configCommand(options: ConfigOptions): Promise<void> {
   // Check if we're in a project directory
   if (!existsSync(join(projectDir, 'CLAUDE.md')) && !existsSync(join(projectDir, '.mcp.json'))) {
     console.error(chalk.red('Error: Not in an AI-EDA project directory'));
-    console.error('Run this command from a project created with "ai-eda init"');
+    console.error('Run this command from a project created with "claude-eda init"');
     process.exit(1);
   }
 
@@ -88,14 +88,14 @@ export async function configCommand(options: ConfigOptions): Promise<void> {
 
   // No options provided, show help
   console.log(chalk.bold('\nConfiguration Commands:\n'));
-  console.log('  ai-eda config --list           List all configuration');
-  console.log('  ai-eda config --get <key>      Get a configuration value');
-  console.log('  ai-eda config --set <key>=<value>  Set a configuration value');
+  console.log('  claude-eda config --list           List all configuration');
+  console.log('  claude-eda config --get <key>      Get a configuration value');
+  console.log('  claude-eda config --set <key>=<value>  Set a configuration value');
   console.log('');
   console.log(chalk.dim('Examples:'));
-  console.log('  ai-eda config --get project.name');
-  console.log('  ai-eda config --set board.layers=4');
-  console.log('  ai-eda config --set project.description="My awesome board"');
+  console.log('  claude-eda config --get project.name');
+  console.log('  claude-eda config --set board.layers=4');
+  console.log('  claude-eda config --set project.description="My awesome board"');
 }
 
 function printConfig(obj: Record<string, unknown>, indent: string = ''): void {
