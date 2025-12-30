@@ -6,6 +6,7 @@
 import type {
   EasyEDAComponentData,
   EasyEDAPin,
+  EasyEDASymbolData,
   EasyEDASymbolRect,
   EasyEDASymbolCircle,
   EasyEDASymbolEllipse,
@@ -18,6 +19,7 @@ import { KICAD_SYMBOL_VERSION, KICAD_DEFAULTS, roundTo } from '../common/index.j
 import { extractDisplayValue } from './value-normalizer.js';
 import { getSymbolTemplate, type SymbolTemplate } from './symbol-templates.js';
 import { getLibraryCategory, type LibraryCategory } from './category-router.js';
+import { parseSvgArcPath, svgArcToCenter, radToDeg, normalizeAngle } from './svg-arc.js';
 
 // Map library categories to template prefixes for passive components
 const CATEGORY_TO_PREFIX: Partial<Record<LibraryCategory, string>> = {
@@ -128,7 +130,7 @@ export class SymbolConverter {
 
   /**
    * Generate symbol from EasyEDA data (for ICs and complex components)
-   * Uses DIP-style layout with pins on left and right sides
+   * Uses parsed shapes if available, otherwise falls back to DIP-style layout
    */
   private generateFromEasyEDA(
     component: EasyEDAComponentData,
@@ -137,7 +139,12 @@ export class SymbolConverter {
     const { info, symbol } = component;
     const name = options.symbolName ? this.sanitizeName(options.symbolName) : this.sanitizeName(info.name);
 
-    // Calculate DIP-style layout
+    // Check if we have non-trivial shapes to render
+    if (this.hasRenderableShapes(symbol)) {
+      return this.generateFromShapes(component, name);
+    }
+
+    // Fall back to DIP-style layout
     const layout = this.calculateICLayout(symbol.pins);
 
     let output = this.generateSymbolStart(name, false); // Show pin numbers for ICs
@@ -147,6 +154,357 @@ export class SymbolConverter {
     output += this.generateSymbolEnd();
 
     return output;
+  }
+
+  /**
+   * Check if symbol has shapes worth rendering (not just pins)
+   */
+  private hasRenderableShapes(symbol: EasyEDASymbolData): boolean {
+    return (
+      symbol.rectangles.length > 0 ||
+      symbol.circles.length > 0 ||
+      symbol.ellipses.length > 0 ||
+      symbol.polylines.length > 0 ||
+      symbol.polygons.length > 0 ||
+      symbol.arcs.length > 0 ||
+      symbol.paths.length > 0
+    );
+  }
+
+  /**
+   * Generate symbol using parsed EasyEDA shapes
+   */
+  private generateFromShapes(
+    component: EasyEDAComponentData,
+    name: string
+  ): string {
+    const { info, symbol } = component;
+    const origin = symbol.origin;
+
+    let output = this.generateSymbolStart(name, false);
+    output += this.generateProperties(info, name);
+
+    // Generate graphics unit with shapes
+    output += `\t\t(symbol "${name}_0_1"\n`;
+
+    // Convert each shape type
+    for (const rect of symbol.rectangles) {
+      output += this.convertRectangle(rect, origin);
+    }
+    for (const circle of symbol.circles) {
+      output += this.convertCircle(circle, origin);
+    }
+    for (const ellipse of symbol.ellipses) {
+      output += this.convertEllipse(ellipse, origin);
+    }
+    for (const polyline of symbol.polylines) {
+      output += this.convertPolyline(polyline, origin);
+    }
+    for (const polygon of symbol.polygons) {
+      output += this.convertPolygon(polygon, origin);
+    }
+    for (const arc of symbol.arcs) {
+      const arcOutput = this.convertArc(arc, origin);
+      if (arcOutput) output += arcOutput;
+    }
+
+    output += `\t\t)\n`;
+
+    // Generate pins unit
+    output += `\t\t(symbol "${name}_1_1"\n`;
+    for (const pin of symbol.pins) {
+      output += this.generateShapePin(pin, origin);
+    }
+    output += `\t\t)\n`;
+
+    output += this.generateSymbolEnd();
+
+    return output;
+  }
+
+  /**
+   * Convert EasyEDA X coordinate to KiCad (with origin offset)
+   */
+  private convertX(x: number, originX: number): number {
+    return roundTo((x - originX) * EE_TO_MM, 3);
+  }
+
+  /**
+   * Convert EasyEDA Y coordinate to KiCad (Y-flipped with origin offset)
+   */
+  private convertY(y: number, originY: number): number {
+    return roundTo(-(y - originY) * EE_TO_MM, 3);
+  }
+
+  /**
+   * Convert stroke width from EasyEDA to KiCad
+   */
+  private convertStrokeWidth(width: number): number {
+    return roundTo(Math.max(width * EE_TO_MM, 0.1), 3);
+  }
+
+  /**
+   * Convert EasyEDA rectangle to KiCad format
+   */
+  private convertRectangle(rect: EasyEDASymbolRect, origin: { x: number; y: number }): string {
+    const x1 = this.convertX(rect.x, origin.x);
+    const y1 = this.convertY(rect.y, origin.y);
+    const x2 = this.convertX(rect.x + rect.width, origin.x);
+    const y2 = this.convertY(rect.y + rect.height, origin.y);
+    const strokeWidth = this.convertStrokeWidth(rect.strokeWidth);
+
+    return `\t\t\t(rectangle
+\t\t\t\t(start ${x1} ${y1})
+\t\t\t\t(end ${x2} ${y2})
+\t\t\t\t(stroke
+\t\t\t\t\t(width ${strokeWidth})
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type background)
+\t\t\t\t)
+\t\t\t)
+`;
+  }
+
+  /**
+   * Convert EasyEDA circle to KiCad format
+   */
+  private convertCircle(circle: EasyEDASymbolCircle, origin: { x: number; y: number }): string {
+    const cx = this.convertX(circle.cx, origin.x);
+    const cy = this.convertY(circle.cy, origin.y);
+    const radius = roundTo(circle.radius * EE_TO_MM, 3);
+    const strokeWidth = this.convertStrokeWidth(circle.strokeWidth);
+
+    return `\t\t\t(circle
+\t\t\t\t(center ${cx} ${cy})
+\t\t\t\t(radius ${radius})
+\t\t\t\t(stroke
+\t\t\t\t\t(width ${strokeWidth})
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type none)
+\t\t\t\t)
+\t\t\t)
+`;
+  }
+
+  /**
+   * Convert EasyEDA ellipse to KiCad format (approximated as circle if rx≈ry)
+   * KiCad symbols don't support true ellipses, so we use a circle with average radius
+   */
+  private convertEllipse(ellipse: EasyEDASymbolEllipse, origin: { x: number; y: number }): string {
+    const cx = this.convertX(ellipse.cx, origin.x);
+    const cy = this.convertY(ellipse.cy, origin.y);
+    // Use average radius for approximation
+    const radius = roundTo(((ellipse.radiusX + ellipse.radiusY) / 2) * EE_TO_MM, 3);
+    const strokeWidth = this.convertStrokeWidth(ellipse.strokeWidth);
+
+    return `\t\t\t(circle
+\t\t\t\t(center ${cx} ${cy})
+\t\t\t\t(radius ${radius})
+\t\t\t\t(stroke
+\t\t\t\t\t(width ${strokeWidth})
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type none)
+\t\t\t\t)
+\t\t\t)
+`;
+  }
+
+  /**
+   * Convert EasyEDA polyline to KiCad format
+   */
+  private convertPolyline(polyline: EasyEDASymbolPolyline, origin: { x: number; y: number }): string {
+    const points = this.parsePoints(polyline.points, origin);
+    if (points.length < 2) return '';
+
+    const strokeWidth = this.convertStrokeWidth(polyline.strokeWidth);
+    const pointsStr = points.map(p => `(xy ${p.x} ${p.y})`).join('\n\t\t\t\t\t');
+
+    return `\t\t\t(polyline
+\t\t\t\t(pts
+\t\t\t\t\t${pointsStr}
+\t\t\t\t)
+\t\t\t\t(stroke
+\t\t\t\t\t(width ${strokeWidth})
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type none)
+\t\t\t\t)
+\t\t\t)
+`;
+  }
+
+  /**
+   * Convert EasyEDA polygon to KiCad format (closed, filled polyline)
+   */
+  private convertPolygon(polygon: EasyEDASymbolPolygon, origin: { x: number; y: number }): string {
+    const points = this.parsePoints(polygon.points, origin);
+    if (points.length < 3) return '';
+
+    const strokeWidth = this.convertStrokeWidth(polygon.strokeWidth);
+    const pointsStr = points.map(p => `(xy ${p.x} ${p.y})`).join('\n\t\t\t\t\t');
+
+    return `\t\t\t(polyline
+\t\t\t\t(pts
+\t\t\t\t\t${pointsStr}
+\t\t\t\t)
+\t\t\t\t(stroke
+\t\t\t\t\t(width ${strokeWidth})
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type background)
+\t\t\t\t)
+\t\t\t)
+`;
+  }
+
+  /**
+   * Convert EasyEDA arc to KiCad format
+   * Uses SVG arc to center parameterization conversion
+   */
+  private convertArc(arc: EasyEDASymbolArc, origin: { x: number; y: number }): string | null {
+    // Parse SVG arc path
+    const params = parseSvgArcPath(arc.path);
+    if (!params) return null;
+
+    // Convert to center parameterization
+    const center = svgArcToCenter(params);
+    if (!center) return null;
+
+    // Convert coordinates from EasyEDA to KiCad
+    const cx = this.convertX(center.cx, origin.x);
+    const cy = this.convertY(center.cy, origin.y);
+    const radius = roundTo(center.rx * EE_TO_MM, 3); // Use rx (arcs are typically circular)
+
+    // Convert start and end points
+    const startX = this.convertX(params.x1, origin.x);
+    const startY = this.convertY(params.y1, origin.y);
+    const endX = this.convertX(params.x2, origin.x);
+    const endY = this.convertY(params.y2, origin.y);
+
+    // Calculate mid-point on arc for KiCad
+    const midAngle = center.startAngle + center.deltaAngle / 2;
+    const midX = roundTo(cx + radius * Math.cos(midAngle), 3);
+    const midY = roundTo(cy - radius * Math.sin(midAngle), 3); // Y inverted
+
+    const strokeWidth = this.convertStrokeWidth(arc.strokeWidth);
+
+    return `\t\t\t(arc
+\t\t\t\t(start ${startX} ${startY})
+\t\t\t\t(mid ${midX} ${midY})
+\t\t\t\t(end ${endX} ${endY})
+\t\t\t\t(stroke
+\t\t\t\t\t(width ${strokeWidth})
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type none)
+\t\t\t\t)
+\t\t\t)
+`;
+  }
+
+  /**
+   * Parse space-separated point string to array of {x, y}
+   */
+  private parsePoints(pointsStr: string, origin: { x: number; y: number }): Array<{ x: number; y: number }> {
+    const values = pointsStr.trim().split(/\s+/).map(parseFloat);
+    const points: Array<{ x: number; y: number }> = [];
+
+    for (let i = 0; i < values.length - 1; i += 2) {
+      points.push({
+        x: this.convertX(values[i], origin.x),
+        y: this.convertY(values[i + 1], origin.y),
+      });
+    }
+
+    return points;
+  }
+
+  /**
+   * Generate a pin using EasyEDA coordinates and rotation
+   *
+   * EasyEDA: pin.x/y is the WIRE connection point (junction)
+   *          rotation points FROM wire TO body
+   * KiCad: pin position is the WIRE connection point
+   *        rotation points FROM wire TO body
+   *
+   * So we just need coordinate conversion with Y-flip!
+   */
+  private generateShapePin(pin: EasyEDAPin, origin: { x: number; y: number }): string {
+    const pinType = this.mapPinType(pin.electricalType);
+
+    // Convert wire/junction position to KiCad coordinates (with Y-flip)
+    const x = this.convertX(pin.x, origin.x);
+    const y = this.convertY(pin.y, origin.y);
+
+    // Map EasyEDA rotation to KiCad rotation
+    // Both point FROM wire TO body, but Y-axis is flipped
+    const rotation = this.mapPinRotation(pin.rotation);
+
+    // Convert pin length
+    const pinLength = roundTo(pin.pinLength * EE_TO_MM, 2);
+
+    // Determine pin style based on indicators
+    const pinStyle = this.getPinStyle(pin);
+
+    const ts = IC_PIN_FONT_SIZE;
+
+    return `\t\t\t(pin ${pinType} ${pinStyle}
+\t\t\t\t(at ${x} ${y} ${rotation})
+\t\t\t\t(length ${pinLength})
+\t\t\t\t(name "${this.sanitizePinName(pin.name)}"
+\t\t\t\t\t(effects
+\t\t\t\t\t\t(font
+\t\t\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t\t\t)
+\t\t\t\t\t)
+\t\t\t\t)
+\t\t\t\t(number "${pin.number}"
+\t\t\t\t\t(effects
+\t\t\t\t\t\t(font
+\t\t\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t\t\t)
+\t\t\t\t\t)
+\t\t\t\t)
+\t\t\t)
+`;
+  }
+
+  /**
+   * Map EasyEDA pin rotation to KiCad rotation
+   *
+   * EasyEDA: rotation indicates direction pin EXTENDS from wire (away from body)
+   * KiCad: rotation indicates direction pin POINTS (from wire toward body)
+   *
+   * So we need to flip by 180°, then account for Y-axis flip:
+   * - EasyEDA 0 (extends right, body on left) -> KiCad 180 (points left toward body)
+   * - EasyEDA 180 (extends left, body on right) -> KiCad 0 (points right toward body)
+   * - EasyEDA 90 (extends down, body on top) -> KiCad 90 (points up toward body, Y-flipped)
+   * - EasyEDA 270 (extends up, body on bottom) -> KiCad 270 (points down toward body, Y-flipped)
+   */
+  private mapPinRotation(eeRotation: number): number {
+    const normalized = ((eeRotation % 360) + 360) % 360;
+    // Flip 180° to point toward body instead of away
+    // Then swap vertical due to Y-flip (but 180° flip already handles this naturally)
+    return (normalized + 180) % 360;
+  }
+
+  /**
+   * Get KiCad pin style from EasyEDA pin indicators
+   */
+  private getPinStyle(pin: EasyEDAPin): string {
+    if (pin.hasDot && pin.hasClock) return 'inverted_clock';
+    if (pin.hasDot) return 'inverted';
+    if (pin.hasClock) return 'clock';
+    return 'line';
   }
 
   /**
