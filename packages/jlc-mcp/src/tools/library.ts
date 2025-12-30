@@ -340,10 +340,10 @@ export async function handleFetchLibrary(args: unknown) {
     // Use KiCad standard footprint
     footprintRef = footprintResult.reference!;
   } else {
-    // Custom footprint - will be saved later
-    const footprintName = footprintResult.name + '_' + params.lcsc_id;
-    footprintPath = join(paths.footprintDir, `${footprintName}.kicad_mod`);
-    footprintRef = getCategoryFootprintRef(footprintName);
+    // Custom footprint - use EasyEDA package name (no LCSC suffix)
+    // This matches KiCad convention: footprints are generic packages, not component-specific
+    footprintPath = join(paths.footprintDir, `${footprintResult.name}.kicad_mod`);
+    footprintRef = getCategoryFootprintRef(footprintResult.name);
   }
 
   // Update component info with full footprint reference (including library prefix)

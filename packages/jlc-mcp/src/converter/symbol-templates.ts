@@ -76,21 +76,58 @@ const CAPACITOR_TEMPLATE: SymbolTemplate = {
 };
 
 /**
- * Inductor template - Rectangular body (simplified from arcs)
- * Using rectangle similar to resistor but taller
+ * Inductor template - 4 semicircular arcs (standard coil symbol)
+ * Arcs arranged vertically, bulging to the right
  */
 const INDUCTOR_TEMPLATE: SymbolTemplate = {
   pinLength: 2.54,
   pinSpacing: 7.62,  // pins at y = ±3.81mm
-  bodyGraphics: `\t\t\t(rectangle
-\t\t\t\t(start -1.27 2.54)
-\t\t\t\t(end 1.27 -2.54)
+  bodyGraphics: `\t\t\t(arc
+\t\t\t\t(start 0 2.54)
+\t\t\t\t(mid 0.635 1.905)
+\t\t\t\t(end 0 1.27)
 \t\t\t\t(stroke
 \t\t\t\t\t(width 0.254)
 \t\t\t\t\t(type default)
 \t\t\t\t)
 \t\t\t\t(fill
-\t\t\t\t\t(type background)
+\t\t\t\t\t(type none)
+\t\t\t\t)
+\t\t\t)
+\t\t\t(arc
+\t\t\t\t(start 0 1.27)
+\t\t\t\t(mid 0.635 0.635)
+\t\t\t\t(end 0 0)
+\t\t\t\t(stroke
+\t\t\t\t\t(width 0.254)
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type none)
+\t\t\t\t)
+\t\t\t)
+\t\t\t(arc
+\t\t\t\t(start 0 0)
+\t\t\t\t(mid 0.635 -0.635)
+\t\t\t\t(end 0 -1.27)
+\t\t\t\t(stroke
+\t\t\t\t\t(width 0.254)
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type none)
+\t\t\t\t)
+\t\t\t)
+\t\t\t(arc
+\t\t\t\t(start 0 -1.27)
+\t\t\t\t(mid 0.635 -1.905)
+\t\t\t\t(end 0 -2.54)
+\t\t\t\t(stroke
+\t\t\t\t\t(width 0.254)
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type none)
 \t\t\t\t)
 \t\t\t)`,
   refPosition: { x: 2.54, y: 0, angle: 90 },

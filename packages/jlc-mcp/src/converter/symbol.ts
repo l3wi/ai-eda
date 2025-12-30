@@ -7,6 +7,15 @@ import type { EasyEDAComponentData, EasyEDAPin } from '../common/index.js';
 import { KICAD_SYMBOL_VERSION, KICAD_DEFAULTS, roundTo } from '../common/index.js';
 import { extractDisplayValue } from './value-normalizer.js';
 import { getSymbolTemplate, type SymbolTemplate } from './symbol-templates.js';
+import { getLibraryCategory, type LibraryCategory } from './category-router.js';
+
+// Map library categories to template prefixes for passive components
+const CATEGORY_TO_PREFIX: Partial<Record<LibraryCategory, string>> = {
+  Resistors: 'R',
+  Capacitors: 'C',
+  Inductors: 'L',
+  Diodes: 'D',
+};
 
 // EasyEDA uses 10mil units (0.254mm per unit)
 const EE_TO_MM = 0.254;
@@ -62,7 +71,18 @@ export class SymbolConverter {
     options: SymbolConversionOptions = {}
   ): string {
     const { info } = component;
-    const template = getSymbolTemplate(info.prefix);
+
+    // Try prefix-based template first
+    let template = getSymbolTemplate(info.prefix);
+
+    // If no template from prefix, check if category maps to a passive template
+    if (!template) {
+      const category = getLibraryCategory(info.prefix, info.category, info.description);
+      const categoryPrefix = CATEGORY_TO_PREFIX[category];
+      if (categoryPrefix) {
+        template = getSymbolTemplate(categoryPrefix);
+      }
+    }
 
     if (template) {
       // Use fixed layout for passives (R, C, L, D)

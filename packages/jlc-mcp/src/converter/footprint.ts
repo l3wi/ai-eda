@@ -1,14 +1,75 @@
 /**
  * EasyEDA Footprint to KiCad Footprint Converter
- * Converts EasyEDA footprint format to KiCad .kicad_mod format
+ * Complete rewrite to handle all EasyEDA shape types
+ *
+ * Supported shapes: PAD, TRACK, HOLE, CIRCLE, ARC, RECT, VIA, TEXT
  */
 
-import type { EasyEDAComponentData, EasyEDAPad } from '../common/index.js';
+import type {
+  EasyEDAComponentData,
+  EasyEDAPad,
+  EasyEDATrack,
+  EasyEDAHole,
+  EasyEDACircle,
+  EasyEDAArc,
+  EasyEDARect,
+  EasyEDAVia,
+  EasyEDAText,
+} from '../common/index.js';
 import { KICAD_FOOTPRINT_VERSION, KICAD_LAYERS, roundTo } from '../common/index.js';
 import { mapToKicadFootprint, getKicadFootprintRef } from './footprint-mapper.js';
 
-// EasyEDA uses 10mil units
-const EE_TO_MM = 0.254;
+// =============================================================================
+// Constants - EasyEDA to KiCad mappings from easyeda2kicad.py
+// =============================================================================
+
+// EasyEDA uses 10mil units (0.254mm per unit)
+const EE_TO_MM = 10 * 0.0254; // = 0.254
+
+// General layer mapping for graphics (TRACK, CIRCLE, ARC, RECT, TEXT)
+const KI_LAYERS: Record<number, string> = {
+  1: 'F.Cu',
+  2: 'B.Cu',
+  3: 'F.SilkS',
+  4: 'B.SilkS',
+  5: 'F.Paste',
+  6: 'B.Paste',
+  7: 'F.Mask',
+  8: 'B.Mask',
+  10: 'Edge.Cuts',
+  11: 'Edge.Cuts',
+  12: 'Cmts.User',
+  13: 'F.Fab',
+  14: 'B.Fab',
+  15: 'Dwgs.User',
+  101: 'F.Fab',
+};
+
+// Layer mapping for SMD pads (includes paste layer)
+const KI_PAD_LAYER_SMD: Record<number, string> = {
+  1: '"F.Cu" "F.Paste" "F.Mask"',
+  2: '"B.Cu" "B.Paste" "B.Mask"',
+  11: '"*.Cu" "*.Paste" "*.Mask"',
+};
+
+// Layer mapping for THT pads (no paste layer)
+const KI_PAD_LAYER_THT: Record<number, string> = {
+  1: '"F.Cu" "F.Mask"',
+  2: '"B.Cu" "B.Mask"',
+  11: '"*.Cu" "*.Mask"',
+};
+
+// Pad shape mapping
+const KI_PAD_SHAPE: Record<string, string> = {
+  ELLIPSE: 'circle',
+  RECT: 'rect',
+  OVAL: 'oval',
+  POLYGON: 'custom',
+};
+
+// =============================================================================
+// Types
+// =============================================================================
 
 export interface FootprintConversionOptions {
   libraryName?: string;
@@ -16,17 +77,16 @@ export interface FootprintConversionOptions {
   modelPath?: string;
 }
 
-/**
- * Result of footprint resolution - either a KiCad standard reference or generated content
- */
 export interface FootprintResult {
   type: 'reference' | 'generated';
-  /** KiCad standard footprint reference (e.g., "Resistor_SMD:R_0603_1608Metric") */
   reference?: string;
-  /** Generated .kicad_mod content for custom footprints */
   content?: string;
-  /** Footprint name for file naming */
   name: string;
+}
+
+interface Point {
+  x: number;
+  y: number;
 }
 
 interface BoundingBox {
@@ -36,25 +96,135 @@ interface BoundingBox {
   maxY: number;
 }
 
+// =============================================================================
+// Helper functions
+// =============================================================================
+
+/**
+ * Convert EasyEDA coordinate to mm (relative to origin)
+ */
+function toMM(value: number): number {
+  return value * EE_TO_MM;
+}
+
+/**
+ * Convert EasyEDA X coordinate (origin-relative, Y-flipped for KiCad)
+ */
+function convertX(x: number, originX: number): number {
+  return roundTo((x - originX) * EE_TO_MM, 4);
+}
+
+/**
+ * Convert EasyEDA Y coordinate (origin-relative)
+ * Note: KiCad footprints use same Y convention as EasyEDA (Y positive going down)
+ */
+function convertY(y: number, originY: number): number {
+  return roundTo((y - originY) * EE_TO_MM, 4);
+}
+
+/**
+ * Parse space-separated point string "x1 y1 x2 y2 ..." into Point array
+ */
+function parsePoints(pointsStr: string): Point[] {
+  const values = pointsStr.trim().split(/\s+/).map(Number);
+  const points: Point[] = [];
+  for (let i = 0; i < values.length - 1; i += 2) {
+    points.push({ x: values[i], y: values[i + 1] });
+  }
+  return points;
+}
+
+/**
+ * Get KiCad layer name from EasyEDA layer ID
+ */
+function getLayer(layerId: number): string {
+  return KI_LAYERS[layerId] || 'F.SilkS';
+}
+
+/**
+ * Get KiCad pad layers based on pad type and EasyEDA layer
+ */
+function getPadLayers(layerId: number, isSmd: boolean): string {
+  if (isSmd) {
+    return KI_PAD_LAYER_SMD[layerId] || '"F.Cu" "F.Paste" "F.Mask"';
+  }
+  return KI_PAD_LAYER_THT[layerId] || '"*.Cu" "*.Mask"';
+}
+
+/**
+ * Parse SVG arc path and extract arc parameters
+ * Format: "M x1 y1 A rx ry rotation large_arc sweep x2 y2"
+ */
+function parseSvgArcPath(
+  path: string,
+  originX: number,
+  originY: number
+): { start: Point; end: Point; mid: Point } | null {
+  try {
+    // Match the SVG arc command pattern
+    const pathMatch = path.match(
+      /M\s*([\d.-]+)\s*([\d.-]+)\s*A\s*([\d.-]+)\s*([\d.-]+)\s*([\d.-]+)\s*(\d)\s*(\d)\s*([\d.-]+)\s*([\d.-]+)/i
+    );
+
+    if (!pathMatch) return null;
+
+    const [, x1, y1, rx, ry, rotation, largeArc, sweep, x2, y2] = pathMatch.map(Number);
+
+    // Convert to KiCad coordinates
+    const start: Point = {
+      x: convertX(x1, originX),
+      y: convertY(y1, originY),
+    };
+    const end: Point = {
+      x: convertX(x2, originX),
+      y: convertY(y2, originY),
+    };
+
+    // Calculate midpoint on arc (simplified - uses center approximation)
+    const centerX = (x1 + x2) / 2;
+    const centerY = (y1 + y2) / 2;
+
+    // Offset midpoint perpendicular to chord based on arc direction
+    const chordLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    const sagitta = Math.min(rx, ry) * 0.5; // Approximation
+
+    // Normal vector to chord
+    const nx = -(y2 - y1) / chordLen;
+    const ny = (x2 - x1) / chordLen;
+
+    // Adjust direction based on sweep flag (0 = counter-clockwise, 1 = clockwise)
+    const direction = sweep === 1 ? 1 : -1;
+
+    const midX = centerX + nx * sagitta * direction;
+    const midY = centerY + ny * sagitta * direction;
+
+    const mid: Point = {
+      x: convertX(midX, originX),
+      y: convertY(midY, originY),
+    };
+
+    return { start, end, mid };
+  } catch {
+    return null;
+  }
+}
+
+// =============================================================================
+// Footprint Converter Class
+// =============================================================================
+
 export class FootprintConverter {
   /**
    * Convert EasyEDA component data to KiCad footprint format string
    */
-  convert(
-    component: EasyEDAComponentData,
-    options: FootprintConversionOptions = {}
-  ): string {
+  convert(component: EasyEDAComponentData, options: FootprintConversionOptions = {}): string {
     const { info, footprint, model3d } = component;
     const name = this.sanitizeName(footprint.name);
     const { origin } = footprint;
     const { include3DModel = false } = options;
 
-    // Calculate bounding box once for reuse
-    const bounds = this.calculateBounds(footprint.pads, origin);
-
     // Map footprint type for attr token
-    // EasyEDA uses 'tht' or 'thru_hole', KiCad attr uses 'through_hole' or 'smd'
-    const attrType = this.mapFootprintAttr(footprint.type);
+    const attrType = footprint.type === 'tht' ? 'through_hole' : 'smd';
 
     let output = `(footprint "${name}"
 \t(version ${KICAD_FOOTPRINT_VERSION})
@@ -70,21 +240,53 @@ export class FootprintConverter {
     // Add attributes
     output += `\t(attr ${attrType})\n`;
 
-    // Add pads
+    // Generate all pads
     for (const pad of footprint.pads) {
       output += this.generatePad(pad, origin);
     }
 
-    // Add silkscreen outline
-    output += this.generateSilkscreen(bounds);
+    // Generate HOLEs as NPTH pads
+    for (const hole of footprint.holes) {
+      output += this.generateHole(hole, origin);
+    }
 
-    // Add fab outline
-    output += this.generateFabOutline(bounds);
+    // Generate VIAs as through-hole pads (rare in footprints but possible)
+    for (const via of footprint.vias) {
+      output += this.generateVia(via, origin);
+    }
+
+    // Generate TRACKs as fp_line (silkscreen, fab, etc.)
+    for (const track of footprint.tracks) {
+      output += this.generateTrack(track, origin);
+    }
+
+    // Generate CIRCLEs as fp_circle
+    for (const circle of footprint.circles) {
+      output += this.generateCircle(circle, origin);
+    }
+
+    // Generate ARCs as fp_arc
+    for (const arc of footprint.arcs) {
+      output += this.generateArc(arc, origin);
+    }
+
+    // Generate RECTs as 4 fp_line elements
+    for (const rect of footprint.rects) {
+      output += this.generateRect(rect, origin);
+    }
+
+    // Generate TEXT elements (not REF/VAL - those are in properties)
+    for (const text of footprint.texts) {
+      output += this.generateText(text, origin);
+    }
+
+    // Calculate bounding box for courtyard (from all elements)
+    const bounds = this.calculateBounds(footprint, origin);
 
     // Add fab reference text
     output += this.generateFabReference();
 
-    // Add courtyard (calculated from pads)
+    // Add courtyard
     output += this.generateCourtyard(bounds);
 
     // Add embedded_fonts declaration
@@ -114,10 +316,9 @@ export class FootprintConverter {
     const prefix = info.prefix;
 
     // Try to map to KiCad standard footprint
-    const mapping = mapToKicadFootprint(packageName, prefix);
+    const mapping = mapToKicadFootprint(packageName, prefix, info.category, info.description);
 
     if (mapping) {
-      // Use KiCad standard footprint - no need to generate custom
       return {
         type: 'reference',
         reference: getKicadFootprintRef(mapping),
@@ -136,26 +337,339 @@ export class FootprintConverter {
     };
   }
 
+  // ===========================================================================
+  // Element generators
+  // ===========================================================================
+
   /**
-   * Calculate bounding box from pads
+   * Generate PAD element
+   * Handles all shapes: RECT, ELLIPSE, OVAL, POLYGON
    */
-  private calculateBounds(pads: EasyEDAPad[], origin: { x: number; y: number }): BoundingBox {
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
+  private generatePad(pad: EasyEDAPad, origin: Point): string {
+    const x = convertX(pad.centerX, origin.x);
+    const y = convertY(pad.centerY, origin.y);
+    const w = roundTo(toMM(pad.width), 4);
+    const h = roundTo(toMM(pad.height), 4);
+    const rotation = pad.rotation || 0;
 
-    for (const pad of pads) {
-      const x = (pad.x - origin.x) * EE_TO_MM;
-      const y = -(pad.y - origin.y) * EE_TO_MM;
-      const hw = (pad.width * EE_TO_MM) / 2;
-      const hh = (pad.height * EE_TO_MM) / 2;
+    // Determine if SMD or THT based on hole radius
+    const isSmd = pad.holeRadius === 0;
+    const padType = isSmd ? 'smd' : 'thru_hole';
+    const layers = getPadLayers(pad.layerId, isSmd);
 
-      minX = Math.min(minX, x - hw);
-      maxX = Math.max(maxX, x + hw);
-      minY = Math.min(minY, y - hh);
-      maxY = Math.max(maxY, y + hh);
+    // Handle POLYGON (custom) pads
+    if (pad.shape === 'POLYGON' && pad.points) {
+      return this.generatePolygonPad(pad, origin, layers);
     }
 
-    // Handle empty pads case
+    // Map shape
+    const shape = KI_PAD_SHAPE[pad.shape] || 'rect';
+    const kicadShape = isSmd && shape === 'rect' ? 'roundrect' : shape;
+
+    let output = `\t(pad "${pad.number}" ${padType} ${kicadShape}\n`;
+    output += `\t\t(at ${x} ${y}${rotation !== 0 ? ` ${rotation}` : ''})\n`;
+    output += `\t\t(size ${w} ${h})\n`;
+    output += `\t\t(layers ${layers})\n`;
+
+    // Add roundrect ratio for SMD rect pads
+    if (kicadShape === 'roundrect') {
+      output += `\t\t(roundrect_rratio 0.25)\n`;
+    }
+
+    // Add drill for THT pads
+    if (!isSmd) {
+      const drillDiameter = roundTo(toMM(pad.holeRadius * 2), 4);
+
+      // Check for slot (oval hole)
+      if (pad.holeLength && pad.holeLength > 0) {
+        const holeW = drillDiameter;
+        const holeH = roundTo(toMM(pad.holeLength), 4);
+        output += `\t\t(drill oval ${holeW} ${holeH})\n`;
+      } else {
+        output += `\t\t(drill ${drillDiameter})\n`;
+      }
+    }
+
+    output += `\t)\n`;
+    return output;
+  }
+
+  /**
+   * Generate custom POLYGON pad using gr_poly primitive
+   */
+  private generatePolygonPad(pad: EasyEDAPad, origin: Point, layers: string): string {
+    const x = convertX(pad.centerX, origin.x);
+    const y = convertY(pad.centerY, origin.y);
+    const rotation = pad.rotation || 0;
+
+    // Parse polygon points
+    const points = parsePoints(pad.points);
+    if (points.length < 3) {
+      // Fallback to rect if not enough points
+      return this.generatePad({ ...pad, shape: 'RECT', points: '' }, origin);
+    }
+
+    // Convert points relative to pad center (no Y-flip - KiCad footprints use same Y convention)
+    const polyPoints = points.map((p) => ({
+      x: roundTo(toMM(p.x - pad.centerX), 2),
+      y: roundTo(toMM(p.y - pad.centerY), 2),
+    }));
+
+    // Custom/polygon pads must have rotation=0 - the polygon points already define orientation
+    let output = `\t(pad "${pad.number}" smd custom\n`;
+    output += `\t\t(at ${x} ${y})\n`;
+    output += `\t\t(size 0.01 0.01)\n`;
+    output += `\t\t(layers ${layers})\n`;
+    output += `\t\t(primitives\n`;
+    output += `\t\t\t(gr_poly\n`;
+    output += `\t\t\t\t(pts\n`;
+
+    for (const pt of polyPoints) {
+      output += `\t\t\t\t\t(xy ${pt.x} ${pt.y})\n`;
+    }
+
+    output += `\t\t\t\t)\n`;
+    output += `\t\t\t\t(width 0.1)\n`;
+    output += `\t\t\t)\n`;
+    output += `\t\t)\n`;
+    output += `\t)\n`;
+
+    return output;
+  }
+
+  /**
+   * Generate HOLE as NPTH pad
+   */
+  private generateHole(hole: EasyEDAHole, origin: Point): string {
+    const x = convertX(hole.centerX, origin.x);
+    const y = convertY(hole.centerY, origin.y);
+    const diameter = roundTo(toMM(hole.radius * 2), 4);
+
+    return `\t(pad "" np_thru_hole circle
+\t\t(at ${x} ${y})
+\t\t(size ${diameter} ${diameter})
+\t\t(drill ${diameter})
+\t\t(layers "*.Cu" "*.Mask")
+\t)\n`;
+  }
+
+  /**
+   * Generate VIA as through-hole pad (no number)
+   */
+  private generateVia(via: EasyEDAVia, origin: Point): string {
+    const x = convertX(via.centerX, origin.x);
+    const y = convertY(via.centerY, origin.y);
+    const outerDiameter = roundTo(toMM(via.diameter), 4);
+    const drillDiameter = roundTo(toMM(via.radius * 2), 4);
+
+    return `\t(pad "" thru_hole circle
+\t\t(at ${x} ${y})
+\t\t(size ${outerDiameter} ${outerDiameter})
+\t\t(drill ${drillDiameter})
+\t\t(layers "*.Cu" "*.Mask")
+\t)\n`;
+  }
+
+  /**
+   * Generate TRACK as fp_line segments
+   */
+  private generateTrack(track: EasyEDATrack, origin: Point): string {
+    const layer = getLayer(track.layerId);
+    const strokeWidth = roundTo(toMM(track.strokeWidth), 2);
+    const points = parsePoints(track.points);
+
+    if (points.length < 2) return '';
+
+    let output = '';
+    for (let i = 0; i < points.length - 1; i++) {
+      const x1 = convertX(points[i].x, origin.x);
+      const y1 = convertY(points[i].y, origin.y);
+      const x2 = convertX(points[i + 1].x, origin.x);
+      const y2 = convertY(points[i + 1].y, origin.y);
+
+      output += `\t(fp_line
+\t\t(start ${x1} ${y1})
+\t\t(end ${x2} ${y2})
+\t\t(stroke
+\t\t\t(width ${strokeWidth})
+\t\t\t(type solid)
+\t\t)
+\t\t(layer "${layer}")
+\t)\n`;
+    }
+
+    return output;
+  }
+
+  /**
+   * Generate CIRCLE as fp_circle
+   */
+  private generateCircle(circle: EasyEDACircle, origin: Point): string {
+    const cx = convertX(circle.cx, origin.x);
+    const cy = convertY(circle.cy, origin.y);
+    const r = roundTo(toMM(circle.radius), 4);
+    const strokeWidth = roundTo(toMM(circle.strokeWidth), 2);
+    const layer = getLayer(circle.layerId);
+
+    // KiCad fp_circle uses center and end point (point on circumference)
+    const endX = roundTo(cx + r, 4);
+
+    return `\t(fp_circle
+\t\t(center ${cx} ${cy})
+\t\t(end ${endX} ${cy})
+\t\t(stroke
+\t\t\t(width ${strokeWidth})
+\t\t\t(type solid)
+\t\t)
+\t\t(layer "${layer}")
+\t)\n`;
+  }
+
+  /**
+   * Generate ARC as fp_arc (from SVG path)
+   */
+  private generateArc(arc: EasyEDAArc, origin: Point): string {
+    const layer = getLayer(arc.layerId);
+    const strokeWidth = roundTo(toMM(arc.strokeWidth), 2);
+
+    const arcData = parseSvgArcPath(arc.path, origin.x, origin.y);
+    if (!arcData) return '';
+
+    const { start, end, mid } = arcData;
+
+    return `\t(fp_arc
+\t\t(start ${start.x} ${start.y})
+\t\t(mid ${mid.x} ${mid.y})
+\t\t(end ${end.x} ${end.y})
+\t\t(stroke
+\t\t\t(width ${strokeWidth})
+\t\t\t(type solid)
+\t\t)
+\t\t(layer "${layer}")
+\t)\n`;
+  }
+
+  /**
+   * Generate RECT as 4 fp_line elements
+   */
+  private generateRect(rect: EasyEDARect, origin: Point): string {
+    const layer = getLayer(rect.layerId);
+    const strokeWidth = roundTo(toMM(rect.strokeWidth), 2);
+
+    const x1 = convertX(rect.x, origin.x);
+    const y1 = convertY(rect.y, origin.y);
+    const x2 = convertX(rect.x + rect.width, origin.x);
+    const y2 = convertY(rect.y + rect.height, origin.y);
+
+    // Generate 4 lines for rectangle
+    const lines = [
+      { start: [x1, y1], end: [x2, y1] }, // top
+      { start: [x2, y1], end: [x2, y2] }, // right
+      { start: [x2, y2], end: [x1, y2] }, // bottom
+      { start: [x1, y2], end: [x1, y1] }, // left
+    ];
+
+    let output = '';
+    for (const line of lines) {
+      output += `\t(fp_line
+\t\t(start ${line.start[0]} ${line.start[1]})
+\t\t(end ${line.end[0]} ${line.end[1]})
+\t\t(stroke
+\t\t\t(width ${strokeWidth})
+\t\t\t(type solid)
+\t\t)
+\t\t(layer "${layer}")
+\t)\n`;
+    }
+
+    return output;
+  }
+
+  /**
+   * Generate TEXT as fp_text (user text, not REF/VAL)
+   */
+  private generateText(text: EasyEDAText, origin: Point): string {
+    // Skip if not displayed or is reference/value placeholder
+    if (!text.isDisplayed) return '';
+    if (text.type === 'N' || text.type === 'P') return ''; // Netname or prefix
+
+    const x = convertX(text.centerX, origin.x);
+    const y = convertY(text.centerY, origin.y);
+    const layer = getLayer(text.layerId);
+    const fontSize = roundTo(toMM(text.fontSize), 2);
+    const rotation = text.rotation || 0;
+
+    return `\t(fp_text user "${this.escapeString(text.text)}"
+\t\t(at ${x} ${y}${rotation !== 0 ? ` ${rotation}` : ''})
+\t\t(layer "${layer}")
+\t\t(effects
+\t\t\t(font
+\t\t\t\t(size ${fontSize} ${fontSize})
+\t\t\t\t(thickness ${roundTo(fontSize * 0.15, 2)})
+\t\t\t)
+\t\t)
+\t)\n`;
+  }
+
+  // ===========================================================================
+  // Property and outline generation
+  // ===========================================================================
+
+  /**
+   * Calculate bounding box from all footprint elements
+   */
+  private calculateBounds(
+    footprint: EasyEDAComponentData['footprint'],
+    origin: Point
+  ): BoundingBox {
+    let minX = Infinity,
+      maxX = -Infinity;
+    let minY = Infinity,
+      maxY = -Infinity;
+
+    const updateBounds = (x: number, y: number, margin = 0) => {
+      minX = Math.min(minX, x - margin);
+      maxX = Math.max(maxX, x + margin);
+      minY = Math.min(minY, y - margin);
+      maxY = Math.max(maxY, y + margin);
+    };
+
+    // Include pads
+    for (const pad of footprint.pads) {
+      const x = convertX(pad.centerX, origin.x);
+      const y = convertY(pad.centerY, origin.y);
+      const hw = toMM(pad.width) / 2;
+      const hh = toMM(pad.height) / 2;
+      updateBounds(x, y, Math.max(hw, hh));
+    }
+
+    // Include holes
+    for (const hole of footprint.holes) {
+      const x = convertX(hole.centerX, origin.x);
+      const y = convertY(hole.centerY, origin.y);
+      const r = toMM(hole.radius);
+      updateBounds(x, y, r);
+    }
+
+    // Include tracks
+    for (const track of footprint.tracks) {
+      const points = parsePoints(track.points);
+      for (const pt of points) {
+        const x = convertX(pt.x, origin.x);
+        const y = convertY(pt.y, origin.y);
+        updateBounds(x, y);
+      }
+    }
+
+    // Include circles
+    for (const circle of footprint.circles) {
+      const x = convertX(circle.cx, origin.x);
+      const y = convertY(circle.cy, origin.y);
+      const r = toMM(circle.radius);
+      updateBounds(x, y, r);
+    }
+
+    // Handle empty case
     if (!isFinite(minX)) {
       return { minX: -1, maxX: 1, minY: -1, maxY: 1 };
     }
@@ -164,8 +678,7 @@ export class FootprintConverter {
   }
 
   /**
-   * Generate footprint properties with proper KiCad format
-   * Only Reference and Value are visible; custom properties are hidden
+   * Generate footprint properties
    */
   private generateProperties(info: EasyEDAComponentData['info'], name: string): string {
     let props = '';
@@ -194,55 +707,23 @@ export class FootprintConverter {
 \t\t)
 \t)\n`;
 
-    // Description (hidden custom property)
-    if (info.description) {
-      props += `\t(property "Description" "${this.escapeString(info.description)}"
-\t\t(at 0 0 0)
-\t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\thide
-\t\t(effects
-\t\t\t(font
-\t\t\t\t(size 1.27 1.27)
-\t\t\t\t(thickness 0.15)
-\t\t\t)
-\t\t)
-\t)\n`;
-    }
+    // Hidden properties
+    const hiddenProps: Array<{ key: string; value: string | undefined }> = [
+      { key: 'Description', value: info.description },
+      { key: 'LCSC', value: info.lcscId },
+      { key: 'Manufacturer', value: info.manufacturer },
+    ];
 
-    // LCSC ID (custom property, hidden)
-    if (info.lcscId) {
-      props += `\t(property "LCSC" "${info.lcscId}"
-\t\t(at 0 0 0)
-\t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\thide
-\t\t(effects
-\t\t\t(font
-\t\t\t\t(size 1.27 1.27)
-\t\t\t\t(thickness 0.15)
-\t\t\t)
-\t\t)
-\t)\n`;
-    }
-
-    // Manufacturer property (hidden)
-    if (info.manufacturer) {
-      props += `\t(property "Manufacturer" "${this.escapeString(info.manufacturer)}"
-\t\t(at 0 0 0)
-\t\t(layer "${KICAD_LAYERS.F_FAB}")
-\t\thide
-\t\t(effects
-\t\t\t(font
-\t\t\t\t(size 1.27 1.27)
-\t\t\t\t(thickness 0.15)
-\t\t\t)
-\t\t)
-\t)\n`;
-    }
-
-    // Component attributes as custom properties (hidden)
+    // Add component attributes
     if (info.attributes) {
       for (const [key, value] of Object.entries(info.attributes)) {
-        props += `\t(property "${this.escapeString(key)}" "${this.escapeString(String(value))}"
+        hiddenProps.push({ key, value: String(value) });
+      }
+    }
+
+    for (const { key, value } of hiddenProps) {
+      if (value) {
+        props += `\t(property "${this.escapeString(key)}" "${this.escapeString(value)}"
 \t\t(at 0 0 0)
 \t\t(layer "${KICAD_LAYERS.F_FAB}")
 \t\thide
@@ -257,69 +738,6 @@ export class FootprintConverter {
     }
 
     return props;
-  }
-
-  /**
-   * Generate a single pad entry
-   */
-  private generatePad(pad: EasyEDAPad, origin: { x: number; y: number }): string {
-    const padType = pad.holeRadius ? 'thru_hole' : 'smd';
-    // Use roundrect for SMD pads, map shape for THT
-    const shape = padType === 'smd' ? 'roundrect' : this.mapPadShape(pad.shape);
-    const layers = this.getPadLayers(padType);
-
-    // Convert coordinates
-    const x = roundTo((pad.x - origin.x) * EE_TO_MM, 4);
-    const y = roundTo(-(pad.y - origin.y) * EE_TO_MM, 4);
-    const w = roundTo(pad.width * EE_TO_MM, 4);
-    const h = roundTo(pad.height * EE_TO_MM, 4);
-
-    let output = `\t(pad "${pad.number}" ${padType} ${shape}
-\t\t(at ${x} ${y})
-\t\t(size ${w} ${h})
-\t\t(layers ${layers})`;
-
-    if (shape === 'roundrect') {
-      output += `\n\t\t(roundrect_rratio 0.25)`;
-    }
-
-    if (pad.holeRadius) {
-      // holeRadius is radius, drill expects diameter
-      const drill = roundTo(pad.holeRadius * 2 * EE_TO_MM, 4);
-      output += `\n\t\t(drill ${drill})`;
-      // THT pads need remove_unused_layers
-      output += `\n\t\t(remove_unused_layers no)`;
-    }
-
-    output += `\n\t)\n`;
-    return output;
-  }
-
-  /**
-   * Generate silkscreen outline on F.SilkS layer
-   */
-  private generateSilkscreen(bounds: BoundingBox): string {
-    // Silkscreen should be slightly outside the pads
-    const margin = 0.15;
-    const minX = roundTo(bounds.minX - margin, 2);
-    const maxX = roundTo(bounds.maxX + margin, 2);
-    const minY = roundTo(bounds.minY - margin, 2);
-    const maxY = roundTo(bounds.maxY + margin, 2);
-
-    return this.generateOutlineLines(minX, minY, maxX, maxY, KICAD_LAYERS.F_SILKS, 0.12);
-  }
-
-  /**
-   * Generate fab layer body outline
-   */
-  private generateFabOutline(bounds: BoundingBox): string {
-    // Fab outline represents the actual component body
-    const minX = roundTo(bounds.minX, 2);
-    const maxX = roundTo(bounds.maxX, 2);
-    const minY = roundTo(bounds.minY, 2);
-    const maxY = roundTo(bounds.maxY, 2);
-
-    return this.generateOutlineLines(minX, minY, maxX, maxY, KICAD_LAYERS.F_FAB, 0.1);
   }
 
   /**
@@ -339,36 +757,20 @@ export class FootprintConverter {
   }
 
   /**
-   * Generate courtyard outline using fp_line elements
+   * Generate courtyard outline
    */
   private generateCourtyard(bounds: BoundingBox): string {
-    // Courtyard margin per IPC-7351
     const margin = 0.25;
     const minX = roundTo(bounds.minX - margin, 2);
     const maxX = roundTo(bounds.maxX + margin, 2);
     const minY = roundTo(bounds.minY - margin, 2);
     const maxY = roundTo(bounds.maxY + margin, 2);
 
-    return this.generateOutlineLines(minX, minY, maxX, maxY, KICAD_LAYERS.F_CRTYD, 0.05);
-  }
-
-  /**
-   * Generate 4 fp_line elements forming a rectangle
-   */
-  private generateOutlineLines(
-    minX: number,
-    minY: number,
-    maxX: number,
-    maxY: number,
-    layer: string,
-    strokeWidth: number,
-    strokeType: string = 'solid'
-  ): string {
     const lines = [
-      { start: [minX, minY], end: [maxX, minY] }, // top
-      { start: [maxX, minY], end: [maxX, maxY] }, // right
-      { start: [maxX, maxY], end: [minX, maxY] }, // bottom
-      { start: [minX, maxY], end: [minX, minY] }, // left
+      { start: [minX, minY], end: [maxX, minY] },
+      { start: [maxX, minY], end: [maxX, maxY] },
+      { start: [maxX, maxY], end: [minX, maxY] },
+      { start: [minX, maxY], end: [minX, minY] },
     ];
 
     let output = '';
@@ -377,10 +779,10 @@ export class FootprintConverter {
 \t\t(start ${line.start[0]} ${line.start[1]})
 \t\t(end ${line.end[0]} ${line.end[1]})
 \t\t(stroke
-\t\t\t(width ${strokeWidth})
-\t\t\t(type ${strokeType})
+\t\t\t(width 0.05)
+\t\t\t(type solid)
 \t\t)
-\t\t(layer "${layer}")
+\t\t(layer "${KICAD_LAYERS.F_CRTYD}")
 \t)\n`;
     }
 
@@ -404,72 +806,16 @@ export class FootprintConverter {
 \t)\n`;
   }
 
-  /**
-   * Map EasyEDA footprint type to KiCad attr token
-   * KiCad valid values: through_hole, smd, virtual, board_only
-   */
-  private mapFootprintAttr(eeType: string): string {
-    const type = eeType.toLowerCase();
-    switch (type) {
-      case 'tht':
-      case 'thru_hole':
-      case 'through_hole':
-        return 'through_hole';
-      case 'smd':
-      case 'smt':
-        return 'smd';
-      default:
-        // Default to smd if unknown
-        return 'smd';
-    }
-  }
+  // ===========================================================================
+  // Utility methods
+  // ===========================================================================
 
-  /**
-   * Map EasyEDA pad shape to KiCad pad shape
-   */
-  private mapPadShape(eeShape: string): string {
-    const shape = eeShape.toUpperCase();
-    switch (shape) {
-      case 'ELLIPSE':
-      case 'CIRCLE':
-        return 'circle';
-      case 'OVAL':
-        return 'oval';
-      case 'ROUNDRECT':
-        return 'roundrect';
-      case 'RECT':
-      default:
-        return 'rect';
-    }
-  }
-
-  /**
-   * Get layers for pad type
-   * Layer order: Cu, Mask, Paste (per KiCad standard)
-   */
-  private getPadLayers(padType: string): string {
-    if (padType === 'smd') {
-      return '"F.Cu" "F.Mask" "F.Paste"';
-    } else {
-      return '"*.Cu" "*.Mask"';
-    }
-  }
-
-  /**
-   * Sanitize name for KiCad
-   */
   private sanitizeName(name: string): string {
     return name.replace(/[^a-zA-Z0-9_.-]/g, '_');
   }
 
-  /**
-   * Escape special characters for KiCad strings
-   */
   private escapeString(str: string): string {
-    return str
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n');
+    return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
   }
 }
 
