@@ -154,6 +154,9 @@ export interface EasyEDASymbolData {
   origin: { x: number; y: number };
 }
 
+/** Parsed symbol data before origin is added */
+export type ParsedSymbolData = Omit<EasyEDASymbolData, 'origin'>;
+
 // =============================================================================
 // Footprint Shape Types (all coordinates in 10mil units)
 // =============================================================================
@@ -303,7 +306,11 @@ export interface EasyEDAFootprintData {
   texts: EasyEDAText[];
   vias: EasyEDAVia[];
   origin: { x: number; y: number };
+  model3d?: { name: string; uuid: string }; // Extracted from SVGNODE
 }
+
+/** Parsed footprint data before origin is added */
+export type ParsedFootprintData = Omit<EasyEDAFootprintData, 'origin'>;
 
 export interface EasyEDAComponentData {
   info: {

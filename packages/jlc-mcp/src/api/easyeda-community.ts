@@ -1,17 +1,21 @@
 /**
  * EasyEDA Community Library API client
  * For searching and fetching user-contributed components
+ *
+ * Uses shared parsers from common/parsers for all shape types.
  */
 
 import type {
   EasyEDACommunitySearchParams,
   EasyEDACommunitySearchResult,
   EasyEDACommunityComponent,
-  EasyEDACommunityPin,
-  EasyEDACommunityPad,
 } from '../common/index.js'
 import { createLogger } from '../common/index.js'
-import { execSync } from 'child_process'
+import {
+  fetchWithCurlFallback,
+  parseSymbolShapes,
+  parseFootprintShapes,
+} from '../common/parsers/index.js'
 
 const logger = createLogger('easyeda-community-api')
 
@@ -22,90 +26,6 @@ const API_VERSION = '6.5.51'
 // Reuse 3D model endpoints from existing easyeda client
 const ENDPOINT_3D_MODEL_STEP = 'https://modules.easyeda.com/qAxj6KHrDKw4blvCG8QJPs7Y/{uuid}'
 const ENDPOINT_3D_MODEL_OBJ = 'https://modules.easyeda.com/3dmodel/{uuid}'
-
-/**
- * Fetch URL with curl fallback for reliability
- */
-async function fetchWithCurlFallback(
-  url: string,
-  options: {
-    method?: 'GET' | 'POST'
-    body?: string
-    contentType?: string
-    binary?: boolean
-  } = {}
-): Promise<string | Buffer> {
-  const method = options.method || 'GET'
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-  }
-
-  if (options.contentType) {
-    headers['Content-Type'] = options.contentType
-  }
-
-  // Try native fetch first
-  try {
-    const fetchOptions: RequestInit = {
-      method,
-      headers,
-    }
-
-    if (options.body) {
-      fetchOptions.body = options.body
-    }
-
-    const response = await fetch(url, fetchOptions)
-
-    if (response.ok) {
-      if (options.binary) {
-        return Buffer.from(await response.arrayBuffer())
-      }
-      return await response.text()
-    }
-  } catch (error) {
-    logger.debug(`Native fetch failed, falling back to curl: ${error}`)
-  }
-
-  // Fallback to curl
-  try {
-    const curlArgs = ['curl', '-s']
-
-    if (method === 'POST') {
-      curlArgs.push('-X', 'POST')
-    }
-
-    curlArgs.push('-H', '"Accept: application/json"')
-    curlArgs.push(
-      '-H',
-      '"User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"'
-    )
-
-    if (options.contentType) {
-      curlArgs.push('-H', `"Content-Type: ${options.contentType}"`)
-    }
-
-    if (options.body) {
-      curlArgs.push('-d', `'${options.body}'`)
-    }
-
-    curlArgs.push(`"${url}"`)
-
-    if (options.binary) {
-      const result = execSync(curlArgs.join(' '), { maxBuffer: 50 * 1024 * 1024 })
-      return result
-    }
-
-    const result = execSync(curlArgs.join(' '), {
-      encoding: 'utf-8',
-      maxBuffer: 50 * 1024 * 1024,
-    })
-    return result
-  } catch (error) {
-    throw new Error(`Both fetch and curl failed for URL: ${url}`)
-  }
-}
 
 export class EasyEDACommunityClient {
   /**
@@ -252,64 +172,20 @@ export class EasyEDACommunityClient {
 
   /**
    * Parse full component data from the API response
+   * Uses shared parsers for consistent shape parsing with LCSC client.
    */
   private parseComponent(result: any): EasyEDACommunityComponent {
     const dataStr = result.dataStr || {}
     const packageDetail = result.packageDetail || {}
     const cPara = dataStr.head?.c_para || {}
 
-    // Parse symbol pins
-    const pins: EasyEDACommunityPin[] = []
-    const symbolShapes: string[] = []
+    // Parse symbol shapes using shared parser
+    const symbolData = parseSymbolShapes(dataStr.shape || [])
 
-    if (dataStr.shape) {
-      for (const line of dataStr.shape) {
-        if (typeof line === 'string' && line.startsWith('P~')) {
-          const pin = this.parseSymbolPin(line)
-          if (pin) pins.push(pin)
-        } else if (typeof line === 'string') {
-          symbolShapes.push(line)
-        }
-      }
-    }
-
-    // Parse footprint pads
-    const pads: EasyEDACommunityPad[] = []
-    const footprintShapes: string[] = []
+    // Parse footprint shapes using shared parser
     const fpDataStr = packageDetail.dataStr || {}
     const fpCPara = fpDataStr.head?.c_para || {}
-
-    if (fpDataStr.shape) {
-      for (const line of fpDataStr.shape) {
-        if (typeof line === 'string' && line.startsWith('PAD~')) {
-          const pad = this.parseFootprintPad(line)
-          if (pad) pads.push(pad)
-        } else if (typeof line === 'string') {
-          footprintShapes.push(line)
-        }
-      }
-    }
-
-    // Get 3D model info
-    let model3d: { name: string; uuid: string } | undefined
-    if (fpDataStr.shape) {
-      for (const line of fpDataStr.shape) {
-        if (typeof line === 'string' && line.startsWith('SVGNODE~')) {
-          try {
-            const jsonStr = line.split('~')[1]
-            const svgData = JSON.parse(jsonStr)
-            if (svgData?.attrs?.uuid) {
-              model3d = {
-                name: svgData.attrs.title || '3D Model',
-                uuid: svgData.attrs.uuid,
-              }
-            }
-          } catch {
-            // Ignore parse errors
-          }
-        }
-      }
-    }
+    const footprintData = parseFootprintShapes(fpDataStr.shape || [])
 
     // Get origins for coordinate normalization
     const symbolOrigin = {
@@ -346,98 +222,35 @@ export class EasyEDACommunityClient {
       docType: result.docType || 2,
       verify: result.verify || false,
       symbol: {
-        pins,
-        shapes: symbolShapes,
+        pins: symbolData.pins,
+        rectangles: symbolData.rectangles,
+        circles: symbolData.circles,
+        ellipses: symbolData.ellipses,
+        arcs: symbolData.arcs,
+        polylines: symbolData.polylines,
+        polygons: symbolData.polygons,
+        paths: symbolData.paths,
         origin: symbolOrigin,
         head: dataStr.head || {},
       },
       footprint: {
         uuid: packageDetail.uuid || '',
         name: fpCPara.package || packageDetail.title || 'Unknown',
-        pads,
-        shapes: footprintShapes,
+        type: footprintData.type,
+        pads: footprintData.pads,
+        tracks: footprintData.tracks,
+        holes: footprintData.holes,
+        circles: footprintData.circles,
+        arcs: footprintData.arcs,
+        rects: footprintData.rects,
+        texts: footprintData.texts,
+        vias: footprintData.vias,
+        model3d: footprintData.model3d,
         origin: footprintOrigin,
         head: fpDataStr.head || {},
       },
-      model3d,
+      model3d: footprintData.model3d,
       rawData: result,
-    }
-  }
-
-  /**
-   * Parse EasyEDA symbol pin format
-   * Format: P~show~type~number~x~y~...^^...^^...^^1~x~y~0~NAME~...^^...
-   */
-  private parseSymbolPin(pinData: string): EasyEDACommunityPin | null {
-    try {
-      const segments = pinData.split('^^')
-      const settings = segments[0].split('~')
-      const nameSegment = segments[3]?.split('~') || []
-
-      return {
-        number: settings[3] || '',
-        name: nameSegment[4] || '',
-        electricalType: settings[2] || '0',
-        x: parseFloat(settings[4]) || 0,
-        y: parseFloat(settings[5]) || 0,
-        rotation: 0,
-      }
-    } catch {
-      return null
-    }
-  }
-
-  /**
-   * Parse EasyEDA footprint pad format
-   * Format varies - can be simple PAD~ or complex PAD~POLYGON~
-   */
-  private parseFootprintPad(padData: string): EasyEDACommunityPad | null {
-    try {
-      const fields = padData.split('~')
-
-      // Handle polygon pads (e.g., PAD~POLYGON~x~y~...)
-      if (fields[1] === 'POLYGON') {
-        const pointsStr = fields[7] || ''
-        const points: Array<{ x: number; y: number }> = []
-
-        // Parse polygon points
-        const coordPairs = pointsStr.split(' ')
-        for (let i = 0; i < coordPairs.length - 1; i += 2) {
-          points.push({
-            x: parseFloat(coordPairs[i]) || 0,
-            y: parseFloat(coordPairs[i + 1]) || 0,
-          })
-        }
-
-        return {
-          number: fields[8] || '',
-          shape: 'POLYGON',
-          x: parseFloat(fields[2]) || 0,
-          y: parseFloat(fields[3]) || 0,
-          width: 0,
-          height: 0,
-          layer: fields[6] || '1',
-          rotation: 0,
-          points,
-        }
-      }
-
-      // Handle standard pads (ELLIPSE, OVAL, RECT, ROUND)
-      const holeValue = parseFloat(fields[9]) || 0
-
-      return {
-        number: fields[8] || '',
-        shape: fields[1] || 'RECT',
-        x: parseFloat(fields[2]) || 0,
-        y: parseFloat(fields[3]) || 0,
-        width: parseFloat(fields[4]) || 0,
-        height: parseFloat(fields[5]) || 0,
-        layer: fields[6] || '1',
-        holeRadius: holeValue > 0 ? holeValue : undefined,
-        rotation: 0,
-      }
-    } catch {
-      return null
     }
   }
 }
