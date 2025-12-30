@@ -1,20 +1,20 @@
 /**
  * Library fetching and conversion tools for MCP
- * Manages category-based JLC libraries that accumulate components
+ * Manages category-based JLC-MCP libraries that accumulate components
  *
- * By default, components are stored in global KiCad library paths:
- * ~/Documents/KiCad/{version}/symbols/JLC-Resistors.kicad_sym
- * ~/Documents/KiCad/{version}/symbols/JLC-Capacitors.kicad_sym
+ * By default, components are stored in global KiCad 3rd party library paths:
+ * ~/Documents/KiCad/{version}/3rdparty/jlc_mcp/symbols/JLC-MCP-Resistors.kicad_sym
+ * ~/Documents/KiCad/{version}/3rdparty/jlc_mcp/symbols/JLC-MCP-Capacitors.kicad_sym
  * etc.
  *
- * This matches kicad-sch-mcp's search pattern for automatic discovery.
+ * Uses ${KICAD9_3RD_PARTY} environment variable for portable table entries.
  */
 
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
-import { homedir } from 'os';
+import { homedir, platform } from 'os';
 import { easyedaClient } from '../api/easyeda.js';
 import { jlcClient } from '../api/jlc.js';
 import { symbolConverter } from '../converter/symbol.js';
@@ -34,9 +34,12 @@ import {
 import { ensureDir, writeText, writeBinary } from '../common/index.js';
 import { join } from 'path';
 
-// Library naming - JLC prefix for all libraries
-const FOOTPRINT_LIBRARY_NAME = getFootprintDirName();  // "JLC.pretty"
-const MODELS_3D_NAME = get3DModelsDirName();           // "JLC.3dshapes"
+// Library naming - JLC-MCP prefix for all libraries
+const FOOTPRINT_LIBRARY_NAME = getFootprintDirName();  // "JLC-MCP.pretty"
+const MODELS_3D_NAME = get3DModelsDirName();           // "JLC-MCP.3dshapes"
+
+// 3rd party library namespace (subfolder under 3rdparty/)
+const LIBRARY_NAMESPACE = 'jlc_mcp';
 
 // KiCad versions to check (newest first)
 const KICAD_VERSIONS = ['9.0', '8.0'];
@@ -69,13 +72,22 @@ interface LibraryPaths {
 }
 
 /**
- * Get global library paths for JLC libraries
- * These paths match kicad-sch-mcp's search pattern
+ * Get global library paths for JLC-MCP libraries
+ * Platform-specific paths matching where ${KICAD9_3RD_PARTY} resolves:
+ * - macOS/Windows: ~/Documents/KiCad/{version}/3rdparty/jlc_mcp/
+ * - Linux: ~/.local/share/kicad/{version}/3rdparty/jlc_mcp/
  */
 function getGlobalLibraryPaths(): LibraryPaths {
   const home = homedir();
   const version = detectKicadVersion();
-  const base = join(home, 'Documents', 'KiCad', version);
+  const plat = platform();
+
+  let base: string;
+  if (plat === 'linux') {
+    base = join(home, '.local', 'share', 'kicad', version, '3rdparty', LIBRARY_NAMESPACE);
+  } else {
+    base = join(home, 'Documents', 'KiCad', version, '3rdparty', LIBRARY_NAMESPACE);
+  }
 
   return {
     base,
@@ -135,18 +147,18 @@ export const getFootprintKicadTool: Tool = {
 
 export const fetchLibraryTool: Tool = {
   name: 'library_fetch',
-  description: `Fetch an LCSC component and add it to category-based JLC libraries.
+  description: `Fetch an LCSC component and add it to category-based JLC-MCP libraries.
 
 Uses LCSC part numbers (e.g., C2040) because LCSC is JLC PCB's preferred supplier for assembly.
 Components fetched via LCSC are guaranteed to be available for JLC PCBA service.
 
 Components are routed to category-based libraries:
-- JLC-Resistors.kicad_sym, JLC-Capacitors.kicad_sym, JLC-ICs.kicad_sym, etc.
+- JLC-MCP-Resistors.kicad_sym, JLC-MCP-Capacitors.kicad_sym, JLC-MCP-ICs.kicad_sym, etc.
 
 For standard packages (0603, 0805, SOIC-8, etc.), uses KiCad built-in footprints.
 Custom footprints are generated for non-standard packages.
 
-By default, saves to global KiCad library at ~/Documents/KiCad/{version}/symbols/.
+By default, saves to global KiCad library at ~/Documents/KiCad/{version}/3rdparty/jlc_mcp/symbols/.
 Optionally specify project_path for project-local storage.
 
 Returns symbol_ref and footprint_ref for immediate use with add_schematic_component.`,

@@ -1,6 +1,6 @@
 /**
  * Library Update Tool
- * Parses existing JLC-* libraries and regenerates all components
+ * Parses existing JLC-MCP-* libraries and regenerates all components
  * with latest data, normalization, and hybrid footprint logic
  */
 
@@ -8,7 +8,7 @@ import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { existsSync, readdirSync } from 'fs';
 import { readFile } from 'fs/promises';
-import { homedir } from 'os';
+import { homedir, platform } from 'os';
 import { easyedaClient } from '../api/easyeda.js';
 import { symbolConverter } from '../converter/symbol.js';
 import { footprintConverter } from '../converter/footprint.js';
@@ -25,6 +25,9 @@ import { join } from 'path';
 
 // KiCad versions to check (newest first)
 const KICAD_VERSIONS = ['9.0', '8.0'];
+
+// 3rd party library namespace
+const LIBRARY_NAMESPACE = 'jlc_mcp';
 
 /**
  * Detect KiCad major version from existing user directories
@@ -43,6 +46,9 @@ function detectKicadVersion(): string {
 
 /**
  * Get library paths for update operation
+ * Platform-specific paths matching where ${KICAD9_3RD_PARTY} resolves:
+ * - macOS/Windows: ~/Documents/KiCad/{version}/3rdparty/jlc_mcp/
+ * - Linux: ~/.local/share/kicad/{version}/3rdparty/jlc_mcp/
  */
 function getLibraryPaths(projectPath?: string): {
   symbolsDir: string;
@@ -60,7 +66,14 @@ function getLibraryPaths(projectPath?: string): {
 
   const home = homedir();
   const version = detectKicadVersion();
-  const base = join(home, 'Documents', 'KiCad', version);
+  const plat = platform();
+
+  let base: string;
+  if (plat === 'linux') {
+    base = join(home, '.local', 'share', 'kicad', version, '3rdparty', LIBRARY_NAMESPACE);
+  } else {
+    base = join(home, 'Documents', 'KiCad', version, '3rdparty', LIBRARY_NAMESPACE);
+  }
 
   return {
     symbolsDir: join(base, 'symbols'),
@@ -94,7 +107,7 @@ function generateEmptyLibrary(): string {
 }
 
 /**
- * Find all JLC-*.kicad_sym files in a directory
+ * Find all JLC-MCP-*.kicad_sym files in a directory
  */
 function findJlcLibraries(symbolsDir: string): string[] {
   if (!existsSync(symbolsDir)) {
@@ -104,7 +117,7 @@ function findJlcLibraries(symbolsDir: string): string[] {
   try {
     const files = readdirSync(symbolsDir);
     return files
-      .filter((f) => f.startsWith('JLC-') && f.endsWith('.kicad_sym'))
+      .filter((f) => f.startsWith('JLC-MCP-') && f.endsWith('.kicad_sym'))
       .map((f) => join(symbolsDir, f));
   } catch {
     return [];
@@ -113,16 +126,16 @@ function findJlcLibraries(symbolsDir: string): string[] {
 
 export const updateLibraryTool: Tool = {
   name: 'library_update',
-  description: `Parse existing JLC-* libraries and regenerate all components with latest data.
+  description: `Parse existing JLC-MCP-* libraries and regenerate all components with latest data.
 
-If no JLC-* libraries exist, initializes empty library files for all categories:
-- JLC-Resistors, JLC-Capacitors, JLC-Inductors, JLC-Diodes
-- JLC-Transistors, JLC-ICs, JLC-Connectors, JLC-Misc
+If no JLC-MCP-* libraries exist, initializes empty library files for all categories:
+- JLC-MCP-Resistors, JLC-MCP-Capacitors, JLC-MCP-Inductors, JLC-MCP-Diodes
+- JLC-MCP-Transistors, JLC-MCP-ICs, JLC-MCP-Connectors, JLC-MCP-Misc
 
-Also creates footprint directory (JLC.pretty) and 3D models directory (JLC.3dshapes).
+Also creates footprint directory (JLC-MCP.pretty) and 3D models directory (JLC-MCP.3dshapes).
 
 When libraries exist, this tool:
-1. Finds all JLC-*.kicad_sym files in the symbols directory
+1. Finds all JLC-MCP-*.kicad_sym files in the symbols directory
 2. Extracts LCSC IDs from each symbol's properties
 3. Fetches fresh data from EasyEDA for each component
 4. Regenerates symbols with value normalization

@@ -115,7 +115,7 @@ library_fetch(lcsc_id="C8734")
 ```
 
 Downloads the component and returns:
-- `symbol_ref`: Reference for schematic (e.g., `JLC-ICs:STM32F103C8T6`)
+- `symbol_ref`: Reference for schematic (e.g., `JLC-MCP-ICs:STM32F103C8T6`)
 - `footprint_ref`: Reference for PCB (e.g., `Package_QFP:LQFP-48_7x7mm_P0.5mm`)
 
 ### Fetch to project-local library
@@ -131,9 +131,9 @@ library_update()
 ```
 
 Creates the category-based library structure if it doesn't exist:
-- Creates `JLC-Resistors.kicad_sym`, `JLC-Capacitors.kicad_sym`, etc.
-- Creates `JLC.pretty/` footprint directory
-- Creates `JLC.3dshapes/` 3D model directory
+- Creates `JLC-MCP-Resistors.kicad_sym`, `JLC-MCP-Capacitors.kicad_sym`, etc.
+- Creates `JLC-MCP.pretty/` footprint directory
+- Creates `JLC-MCP.3dshapes/` 3D model directory
 
 ### Search EasyEDA community
 
@@ -151,45 +151,52 @@ Components are automatically sorted into category-specific libraries:
 
 | Library | Components |
 |---------|------------|
-| `JLC-Resistors.kicad_sym` | Resistors, potentiometers |
-| `JLC-Capacitors.kicad_sym` | Capacitors (ceramic, electrolytic, etc.) |
-| `JLC-Inductors.kicad_sym` | Inductors, ferrite beads |
-| `JLC-Diodes.kicad_sym` | Diodes, LEDs, Zeners |
-| `JLC-Transistors.kicad_sym` | MOSFETs, BJTs |
-| `JLC-ICs.kicad_sym` | Integrated circuits, MCUs |
-| `JLC-Connectors.kicad_sym` | Connectors, headers |
-| `JLC-Misc.kicad_sym` | Everything else |
+| `JLC-MCP-Resistors.kicad_sym` | Resistors, potentiometers |
+| `JLC-MCP-Capacitors.kicad_sym` | Capacitors (ceramic, electrolytic, etc.) |
+| `JLC-MCP-Inductors.kicad_sym` | Inductors, ferrite beads |
+| `JLC-MCP-Diodes.kicad_sym` | Diodes, LEDs, Zeners |
+| `JLC-MCP-Transistors.kicad_sym` | MOSFETs, BJTs |
+| `JLC-MCP-ICs.kicad_sym` | Integrated circuits, MCUs |
+| `JLC-MCP-Connectors.kicad_sym` | Connectors, headers |
+| `JLC-MCP-Misc.kicad_sym` | Everything else |
 
 ### Storage Paths
 
 **Global (default):**
+
+Libraries are stored in the KiCad 3rdparty folder for cross-platform portability:
+- macOS/Windows: `~/Documents/KiCad/9.0/3rdparty/jlc_mcp/`
+- Linux: `~/.local/share/kicad/9.0/3rdparty/jlc_mcp/`
+
+Table entries use `${KICAD9_3RD_PARTY}` for portable paths.
+
 ```
-~/Documents/KiCad/9.0/
+~/Documents/KiCad/9.0/3rdparty/jlc_mcp/
 ├── symbols/
-│   ├── JLC-Resistors.kicad_sym
-│   ├── JLC-Capacitors.kicad_sym
+│   ├── JLC-MCP-Resistors.kicad_sym
+│   ├── JLC-MCP-Capacitors.kicad_sym
 │   └── ...
 ├── footprints/
-│   └── JLC.pretty/
+│   └── JLC-MCP.pretty/
 └── 3dmodels/
-    └── JLC.3dshapes/
+    └── JLC-MCP.3dshapes/
 ```
 
 **Project-local (when `project_path` specified):**
 ```
 <project>/libraries/
 ├── symbols/
-│   └── JLC-*.kicad_sym
+│   └── JLC-MCP-*.kicad_sym
 ├── footprints/
-│   └── JLC.pretty/
+│   └── JLC-MCP.pretty/
 └── 3dmodels/
-    └── JLC.3dshapes/
+    └── JLC-MCP.3dshapes/
 ```
 
 ### Hybrid Footprint Strategy
 
 - **Standard packages** (0603, 0805, SOIC-8, SOT-23, etc.) use KiCad's built-in footprints
-- **Non-standard packages** get custom footprints generated in `JLC.pretty/`
+- **Non-standard packages** get custom footprints generated in `JLC-MCP.pretty/`
 
 This keeps libraries small while ensuring compatibility.
 

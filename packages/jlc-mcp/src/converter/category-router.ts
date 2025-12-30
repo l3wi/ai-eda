@@ -1,7 +1,7 @@
 /**
  * Category Router
  * Routes components to category-based symbol libraries
- * JLC-Resistors.kicad_sym, JLC-Capacitors.kicad_sym, etc.
+ * JLC-MCP-Resistors.kicad_sym, JLC-MCP-Capacitors.kicad_sym, etc.
  */
 
 export type LibraryCategory =
@@ -14,8 +14,8 @@ export type LibraryCategory =
   | 'Connectors'
   | 'Misc';
 
-// Library naming prefix
-const LIBRARY_PREFIX = 'JLC';
+// Library naming prefix - used for KiCad library names and references
+const LIBRARY_PREFIX = 'JLC-MCP';
 
 // Prefix to category mapping
 const PREFIX_CATEGORY_MAP: Record<string, LibraryCategory> = {
@@ -110,7 +110,7 @@ export function getLibraryCategory(
 
 /**
  * Get symbol library filename for a category
- * Returns: "JLC-Resistors.kicad_sym"
+ * Returns: "JLC-MCP-Resistors.kicad_sym"
  */
 export function getLibraryFilename(category: LibraryCategory): string {
   return `${LIBRARY_PREFIX}-${category}.kicad_sym`;
@@ -119,7 +119,7 @@ export function getLibraryFilename(category: LibraryCategory): string {
 /**
  * Get footprint library directory name
  * All footprints go in a single directory
- * Returns: "JLC.pretty"
+ * Returns: "JLC-MCP.pretty"
  */
 export function getFootprintDirName(): string {
   return `${LIBRARY_PREFIX}.pretty`;
@@ -127,7 +127,7 @@ export function getFootprintDirName(): string {
 
 /**
  * Get 3D models directory name
- * Returns: "JLC.3dshapes"
+ * Returns: "JLC-MCP.3dshapes"
  */
 export function get3DModelsDirName(): string {
   return `${LIBRARY_PREFIX}.3dshapes`;
@@ -135,7 +135,7 @@ export function get3DModelsDirName(): string {
 
 /**
  * Get full symbol reference for use in schematics
- * Format: "JLC-Resistors:SymbolName"
+ * Format: "JLC-MCP-Resistors:SymbolName"
  */
 export function getSymbolReference(category: LibraryCategory, symbolName: string): string {
   const libraryName = `${LIBRARY_PREFIX}-${category}`;
@@ -144,7 +144,7 @@ export function getSymbolReference(category: LibraryCategory, symbolName: string
 
 /**
  * Get full footprint reference for use in schematics/boards
- * Format: "JLC:FootprintName"
+ * Format: "JLC-MCP:FootprintName"
  */
 export function getFootprintReference(footprintName: string): string {
   return `${LIBRARY_PREFIX}:${footprintName}`;
@@ -159,10 +159,10 @@ export function getAllCategories(): LibraryCategory[] {
 
 /**
  * Parse library name to extract category
- * "JLC-Resistors" -> "Resistors"
+ * "JLC-MCP-Resistors" -> "Resistors"
  */
 export function parseLibraryName(libraryName: string): LibraryCategory | null {
-  const match = libraryName.match(/^JLC-(\w+)$/);
+  const match = libraryName.match(/^JLC-MCP-(\w+)$/);
   if (match) {
     const category = match[1] as LibraryCategory;
     if (getAllCategories().includes(category)) {
