@@ -3,7 +3,17 @@
  * Converts EasyEDA symbol format to KiCad .kicad_sym format (KiCad 9 compatible)
  */
 
-import type { EasyEDAComponentData, EasyEDAPin } from '../common/index.js';
+import type {
+  EasyEDAComponentData,
+  EasyEDAPin,
+  EasyEDASymbolRect,
+  EasyEDASymbolCircle,
+  EasyEDASymbolEllipse,
+  EasyEDASymbolArc,
+  EasyEDASymbolPolyline,
+  EasyEDASymbolPolygon,
+  EasyEDASymbolPath,
+} from '../common/index.js';
 import { KICAD_SYMBOL_VERSION, KICAD_DEFAULTS, roundTo } from '../common/index.js';
 import { extractDisplayValue } from './value-normalizer.js';
 import { getSymbolTemplate, type SymbolTemplate } from './symbol-templates.js';
@@ -25,6 +35,8 @@ const IC_PIN_LENGTH = 2.54;       // mm (100 mil) - standard pin length
 const IC_PIN_SPACING = 2.54;      // mm (100 mil) - vertical spacing between pins
 const IC_BODY_HALF_WIDTH = 12.7;  // mm (500 mil) - half body width (full = 25.4mm)
 const IC_PIN_FONT_SIZE = 1.0;     // mm - smaller font for pin names/numbers
+const IC_MIN_BODY_SIZE = 5.08;    // mm (200 mil) - minimum body dimension
+const IC_BODY_PADDING = 2.54;     // mm (100 mil) - padding from pins to body edge
 
 export interface SymbolConversionOptions {
   libraryName?: string;

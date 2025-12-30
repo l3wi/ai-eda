@@ -15,6 +15,14 @@ import type {
   EasyEDARect,
   EasyEDAVia,
   EasyEDAText,
+  // Symbol shape types
+  EasyEDASymbolRect,
+  EasyEDASymbolCircle,
+  EasyEDASymbolEllipse,
+  EasyEDASymbolArc,
+  EasyEDASymbolPolyline,
+  EasyEDASymbolPolygon,
+  EasyEDASymbolPath,
 } from '../common/index.js';
 import { createLogger } from '../common/index.js';
 import { execSync } from 'child_process';
@@ -126,17 +134,70 @@ export class EasyEDAClient {
     const lcscInfo = result.lcsc || {};
     const cPara = dataStr?.head?.c_para || {};
 
-    // Parse symbol pins
+    // Parse symbol shapes - pins and all decorative elements
     const pins: EasyEDAPin[] = [];
-    const shapes: string[] = [];
+    const symbolRects: EasyEDASymbolRect[] = [];
+    const symbolCircles: EasyEDASymbolCircle[] = [];
+    const symbolEllipses: EasyEDASymbolEllipse[] = [];
+    const symbolArcs: EasyEDASymbolArc[] = [];
+    const symbolPolylines: EasyEDASymbolPolyline[] = [];
+    const symbolPolygons: EasyEDASymbolPolygon[] = [];
+    const symbolPaths: EasyEDASymbolPath[] = [];
 
     if (dataStr?.shape) {
       for (const line of dataStr.shape) {
-        if (line.startsWith('P~')) {
-          const pin = this.parseSymbolPin(line);
-          if (pin) pins.push(pin);
-        } else {
-          shapes.push(line);
+        // Get the shape designator (first field before ~)
+        const designator = line.split('~')[0];
+
+        switch (designator) {
+          case 'P': {
+            const pin = this.parseSymbolPin(line);
+            if (pin) pins.push(pin);
+            break;
+          }
+          case 'R': {
+            const rect = this.parseSymbolRect(line);
+            if (rect) symbolRects.push(rect);
+            break;
+          }
+          case 'C': {
+            const circle = this.parseSymbolCircle(line);
+            if (circle) symbolCircles.push(circle);
+            break;
+          }
+          case 'E': {
+            const ellipse = this.parseSymbolEllipse(line);
+            if (ellipse) symbolEllipses.push(ellipse);
+            break;
+          }
+          case 'A': {
+            const arc = this.parseSymbolArc(line);
+            if (arc) symbolArcs.push(arc);
+            break;
+          }
+          case 'PL': {
+            const polyline = this.parseSymbolPolyline(line);
+            if (polyline) symbolPolylines.push(polyline);
+            break;
+          }
+          case 'PG': {
+            const polygon = this.parseSymbolPolygon(line);
+            if (polygon) symbolPolygons.push(polygon);
+            break;
+          }
+          case 'PT': {
+            const path = this.parseSymbolPath(line);
+            if (path) symbolPaths.push(path);
+            break;
+          }
+          case 'T':
+            // Text elements - skip for now (we have our own text placement)
+            break;
+          default:
+            // Unknown shape type - log for debugging
+            if (designator && designator.length > 0 && designator.length < 10) {
+              logger.debug(`Unknown symbol shape type: ${designator}`);
+            }
         }
       }
     }
@@ -274,7 +335,13 @@ export class EasyEDAClient {
       },
       symbol: {
         pins,
-        shapes,
+        rectangles: symbolRects,
+        circles: symbolCircles,
+        ellipses: symbolEllipses,
+        arcs: symbolArcs,
+        polylines: symbolPolylines,
+        polygons: symbolPolygons,
+        paths: symbolPaths,
         origin: symbolOrigin,
       },
       footprint: {
@@ -297,7 +364,16 @@ export class EasyEDAClient {
 
   /**
    * Parse EasyEDA symbol pin format
-   * Format: P~show~type~number~x~y~...^^...^^...^^1~x~y~0~NAME~...^^...
+   * Format: P~show~type~number~x~y~rotation~id~locked^^dotData^^pathData^^nameData^^numData^^dot^^clock
+   *
+   * Segments:
+   * [0] = P~show~type~number~x~y~rotation~id~locked (main settings)
+   * [1] = dot display data (not inverted indicator)
+   * [2] = SVG path for pin line (M x y h LENGTH or v LENGTH)
+   * [3] = name text data (1~x~y~rotation~name~fontSize~...)
+   * [4] = number text data
+   * [5] = inverted bubble (dot) indicator - "1" if inverted
+   * [6] = clock triangle indicator - non-empty if clock
    */
   private parseSymbolPin(pinData: string): EasyEDAPin | null {
     try {
@@ -305,13 +381,175 @@ export class EasyEDAClient {
       const settings = segments[0].split('~');
       const nameSegment = segments[3]?.split('~') || [];
 
+      // Extract pin length from SVG path segment (segment 2)
+      // Path format: "M x y h LENGTH" (horizontal) or "M x y v LENGTH" (vertical)
+      let pinLength = 100; // default 100 EasyEDA units
+      if (segments[2]) {
+        const pathMatch = segments[2].match(/[hv]\s*(-?[\d.]+)/i);
+        if (pathMatch) {
+          pinLength = Math.abs(parseFloat(pathMatch[1]));
+        }
+      }
+
+      // Check for inverted (dot/bubble) indicator - segment 5
+      // Format: "is_displayed~x~y" where is_displayed=1 means bubble is shown
+      const dotFields = segments[5]?.split('~') || [];
+      const hasDot = dotFields[0] === '1';
+
+      // Check for clock indicator - segment 6
+      // Format: "is_displayed~path" where is_displayed=1 means clock triangle is shown
+      const clockFields = segments[6]?.split('~') || [];
+      const hasClock = clockFields[0] === '1';
+
+      // Extract rotation from settings
+      const rotation = parseFloat(settings[6]) || 0;
+
       return {
         number: settings[3] || '',
         name: nameSegment[4] || '',
         electricalType: settings[2] || '0',
         x: parseFloat(settings[4]) || 0,
         y: parseFloat(settings[5]) || 0,
-        rotation: 0,
+        rotation,
+        hasDot,
+        hasClock,
+        pinLength,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse symbol Rectangle shape
+   * Format: R~x~y~rx~ry~width~height~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+   */
+  private parseSymbolRect(data: string): EasyEDASymbolRect | null {
+    try {
+      const f = data.split('~');
+      return {
+        x: parseFloat(f[1]) || 0,
+        y: parseFloat(f[2]) || 0,
+        rx: parseFloat(f[3]) || 0,        // corner radius X
+        ry: parseFloat(f[4]) || 0,        // corner radius Y
+        width: parseFloat(f[5]) || 0,
+        height: parseFloat(f[6]) || 0,
+        strokeColor: f[7] || '#000000',
+        strokeWidth: parseFloat(f[8]) || 1,
+        fillColor: f[10] || 'none',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse symbol Circle shape
+   * Format: C~cx~cy~radius~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+   */
+  private parseSymbolCircle(data: string): EasyEDASymbolCircle | null {
+    try {
+      const f = data.split('~');
+      return {
+        cx: parseFloat(f[1]) || 0,
+        cy: parseFloat(f[2]) || 0,
+        radius: parseFloat(f[3]) || 0,
+        strokeColor: f[4] || '#000000',
+        strokeWidth: parseFloat(f[5]) || 1,
+        fillColor: f[7] || 'none',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse symbol Ellipse shape
+   * Format: E~cx~cy~rx~ry~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+   */
+  private parseSymbolEllipse(data: string): EasyEDASymbolEllipse | null {
+    try {
+      const f = data.split('~');
+      return {
+        cx: parseFloat(f[1]) || 0,
+        cy: parseFloat(f[2]) || 0,
+        radiusX: parseFloat(f[3]) || 0,
+        radiusY: parseFloat(f[4]) || 0,
+        strokeColor: f[5] || '#000000',
+        strokeWidth: parseFloat(f[6]) || 1,
+        fillColor: f[8] || 'none',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse symbol Arc shape (SVG path format)
+   * Format: A~path~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+   */
+  private parseSymbolArc(data: string): EasyEDASymbolArc | null {
+    try {
+      const f = data.split('~');
+      return {
+        path: f[1] || '',              // SVG arc path "M x1 y1 A rx ry rotation largeArc sweep x2 y2"
+        strokeColor: f[2] || '#000000',
+        strokeWidth: parseFloat(f[3]) || 1,
+        fillColor: f[5] || 'none',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse symbol Polyline shape (open path)
+   * Format: PL~points~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+   */
+  private parseSymbolPolyline(data: string): EasyEDASymbolPolyline | null {
+    try {
+      const f = data.split('~');
+      return {
+        points: f[1] || '',             // Space-separated "x1 y1 x2 y2 ..."
+        strokeColor: f[2] || '#000000',
+        strokeWidth: parseFloat(f[3]) || 1,
+        fillColor: f[5] || 'none',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse symbol Polygon shape (closed filled path)
+   * Format: PG~points~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+   */
+  private parseSymbolPolygon(data: string): EasyEDASymbolPolygon | null {
+    try {
+      const f = data.split('~');
+      return {
+        points: f[1] || '',             // Space-separated "x1 y1 x2 y2 ..."
+        strokeColor: f[2] || '#000000',
+        strokeWidth: parseFloat(f[3]) || 1,
+        fillColor: f[5] || 'none',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse symbol SVG Path shape
+   * Format: PT~path~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+   */
+  private parseSymbolPath(data: string): EasyEDASymbolPath | null {
+    try {
+      const f = data.split('~');
+      return {
+        path: f[1] || '',               // SVG path commands (M/L/Z/C/A)
+        strokeColor: f[2] || '#000000',
+        strokeWidth: parseFloat(f[3]) || 1,
+        fillColor: f[5] || 'none',
       };
     } catch {
       return null;

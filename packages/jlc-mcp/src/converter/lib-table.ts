@@ -7,9 +7,9 @@ import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 
-// Library configuration - matches kicad-sch-mcp's search pattern
-const DEFAULT_LIBRARY_NAME = 'EDA-MCP';
-const DEFAULT_LIBRARY_DESCRIPTION = 'AI-EDA Component Library (LCSC/EasyEDA)';
+// Library configuration - matches category-router.ts LIBRARY_PREFIX
+const DEFAULT_LIBRARY_NAME = 'JLC-MCP';
+const DEFAULT_LIBRARY_DESCRIPTION = 'JLC-MCP Component Library (LCSC/EasyEDA)';
 
 /**
  * Generate sym-lib-table content

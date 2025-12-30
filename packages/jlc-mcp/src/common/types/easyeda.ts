@@ -42,6 +42,116 @@ export interface EasyEDAPin {
   x: number;
   y: number;
   rotation: number;
+  // Pin style indicators (for inverted/clock pins)
+  hasDot: boolean;        // Inverted bubble indicator
+  hasClock: boolean;      // Clock triangle indicator
+  pinLength: number;      // Pin length in EasyEDA units (extracted from SVG path)
+}
+
+// =============================================================================
+// Symbol Shape Types (different from footprint shapes!)
+// =============================================================================
+
+/**
+ * Symbol Rectangle - body outlines, IC bodies
+ * Format: R~x~y~rx~ry~width~height~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+ */
+export interface EasyEDASymbolRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  strokeWidth: number;
+  strokeColor: string;
+  fillColor: string;
+  rx: number;            // corner radius X
+  ry: number;            // corner radius Y
+}
+
+/**
+ * Symbol Circle
+ * Format: C~cx~cy~radius~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+ */
+export interface EasyEDASymbolCircle {
+  cx: number;
+  cy: number;
+  radius: number;
+  strokeWidth: number;
+  strokeColor: string;
+  fillColor: string;
+}
+
+/**
+ * Symbol Ellipse
+ * Format: E~cx~cy~rx~ry~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+ */
+export interface EasyEDASymbolEllipse {
+  cx: number;
+  cy: number;
+  radiusX: number;
+  radiusY: number;
+  strokeWidth: number;
+  strokeColor: string;
+  fillColor: string;
+}
+
+/**
+ * Symbol Arc with SVG path
+ * Format: A~path~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+ */
+export interface EasyEDASymbolArc {
+  path: string;          // SVG arc path "M x1 y1 A rx ry rotation largeArc sweep x2 y2"
+  strokeWidth: number;
+  strokeColor: string;
+  fillColor: string;
+}
+
+/**
+ * Symbol Polyline - open path
+ * Format: PL~points~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+ */
+export interface EasyEDASymbolPolyline {
+  points: string;        // Space-separated "x1 y1 x2 y2 ..."
+  strokeWidth: number;
+  strokeColor: string;
+  fillColor: string;
+}
+
+/**
+ * Symbol Polygon - closed filled path
+ * Format: PG~points~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+ */
+export interface EasyEDASymbolPolygon {
+  points: string;        // Space-separated "x1 y1 x2 y2 ..."
+  strokeWidth: number;
+  strokeColor: string;
+  fillColor: string;
+}
+
+/**
+ * Symbol Path - SVG path commands
+ * Format: PT~path~strokeColor~strokeWidth~strokeStyle~fillColor~id~locked
+ */
+export interface EasyEDASymbolPath {
+  path: string;          // SVG path commands (M/L/Z/C/A)
+  strokeWidth: number;
+  strokeColor: string;
+  fillColor: string;
+}
+
+/**
+ * Complete symbol data with all shape types
+ */
+export interface EasyEDASymbolData {
+  pins: EasyEDAPin[];
+  rectangles: EasyEDASymbolRect[];
+  circles: EasyEDASymbolCircle[];
+  ellipses: EasyEDASymbolEllipse[];
+  arcs: EasyEDASymbolArc[];
+  polylines: EasyEDASymbolPolyline[];
+  polygons: EasyEDASymbolPolygon[];
+  paths: EasyEDASymbolPath[];
+  origin: { x: number; y: number };
 }
 
 // =============================================================================
@@ -216,11 +326,7 @@ export interface EasyEDAComponentData {
     partClass?: string;
     partNumber?: string;
   };
-  symbol: {
-    pins: EasyEDAPin[];
-    shapes: string[];
-    origin: { x: number; y: number };
-  };
+  symbol: EasyEDASymbolData;
   footprint: EasyEDAFootprintData;
   model3d?: {
     name: string;

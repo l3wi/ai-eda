@@ -331,6 +331,9 @@ export async function handleFixLibrary(args: unknown) {
             x: 0,
             y: maxY + 254, // 1 grid unit below lowest pin (254 = 100mil in EasyEDA units)
             rotation: 0,
+            hasDot: false,
+            hasClock: false,
+            pinLength: 100, // default EasyEDA units
           };
           component.symbol.pins.push(newPin);
           appliedCorrections.push(`Added pin ${correction.number}: "${correction.name}" (${correction.type})`);

@@ -197,6 +197,11 @@ async function ensureGlobalSymLibTable(version: string): Promise<TableUpdateResu
     if (!libraryExistsInTable(content, name)) {
       const uri = getSymbolLibUri(category);
       content = addLibraryToTable(content, name, uri, 'sym', LIBRARY_DESCRIPTION);
+
+      // Validate entry was added correctly
+      if (!libraryExistsInTable(content, name)) {
+        throw new Error(`Failed to add symbol library ${name} to table`);
+      }
       entriesAdded++;
     }
   }
@@ -248,6 +253,12 @@ async function ensureGlobalFpLibTable(version: string): Promise<TableUpdateResul
   if (!libraryExistsInTable(content, name)) {
     const uri = getFootprintLibUri();
     content = addLibraryToTable(content, name, uri, 'fp', LIBRARY_DESCRIPTION);
+
+    // Validate entry was added correctly
+    if (!libraryExistsInTable(content, name)) {
+      throw new Error(`Failed to add footprint library ${name} to table`);
+    }
+
     await writeFile(tablePath, content, 'utf-8');
 
     return {
