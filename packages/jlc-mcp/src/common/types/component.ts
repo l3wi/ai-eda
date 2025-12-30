@@ -51,7 +51,8 @@ export interface ComponentSearchResult {
   price?: number;
   stock: number;
   description: string;
-  datasheet?: string;
+  productUrl?: string;         // LCSC product page URL
+  datasheetPdf?: string;       // Actual PDF datasheet URL
   category?: string;
   /** JLCPCB assembly type: "basic" = no setup fee, "extended" = setup fee required */
   libraryType?: 'basic' | 'extended';

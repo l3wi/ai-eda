@@ -124,7 +124,8 @@ export class JLCClient {
         price: c.componentPrices?.[0]?.productPrice,
         stock: c.stockCount,
         description: c.describe,
-        datasheet: c.dataManualUrl,
+        productUrl: c.lcscGoodsUrl,      // LCSC product page
+        datasheetPdf: c.dataManualUrl,   // Actual PDF datasheet
         category: c.componentTypeEn,
         // JLCPCB assembly part type: "basic" = no setup fee, "extended" = setup fee required
         libraryType: c.componentLibraryType === 'base' ? 'basic' : 'extended',
@@ -164,6 +165,18 @@ export class JLCClient {
       stock: product.stock,
       priceBreaks: [{ quantity: 1, price: product.price || 0 }],
     };
+  }
+
+  /**
+   * Get detailed component information including attributes
+   * Used to enrich EasyEDA data with JLC-specific attributes
+   */
+  async getComponentDetails(lcscPartNumber: string): Promise<ComponentSearchResult | null> {
+    const results = await this.search(lcscPartNumber, { limit: 1 });
+    if (results.length === 0) {
+      return null;
+    }
+    return results[0];
   }
 }
 

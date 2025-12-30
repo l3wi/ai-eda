@@ -16,6 +16,7 @@ import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { homedir } from 'os';
 import { easyedaClient } from '../api/easyeda.js';
+import { jlcClient } from '../api/jlc.js';
 import { symbolConverter } from '../converter/symbol.js';
 import { footprintConverter } from '../converter/footprint.js';
 import {
@@ -278,6 +279,31 @@ export async function handleFetchLibrary(args: unknown) {
     };
   }
 
+  // Enrich with JLC API data for rich component attributes
+  // (Operating Temperature, Supply Voltage, PDF datasheet URL, etc.)
+  try {
+    const jlcDetails = await jlcClient.getComponentDetails(params.lcsc_id);
+    if (jlcDetails) {
+      // Copy PDF datasheet URL
+      if (jlcDetails.datasheetPdf) {
+        component.info.datasheetPdf = jlcDetails.datasheetPdf;
+      }
+      // Use JLC description if it's more detailed (not just the part name)
+      if (jlcDetails.description && jlcDetails.description !== jlcDetails.name) {
+        component.info.description = jlcDetails.description;
+      }
+      // Merge attributes
+      if (jlcDetails.attributes) {
+        component.info.attributes = {
+          ...component.info.attributes,
+          ...jlcDetails.attributes,
+        };
+      }
+    }
+  } catch {
+    // JLC enrichment is optional - continue without it
+  }
+
   // Determine component category for library routing
   const category = getLibraryCategory(
     component.info.prefix,
@@ -292,6 +318,24 @@ export async function handleFetchLibrary(args: unknown) {
   // Ensure directories exist
   await ensureDir(paths.symbolsDir);
   await ensureDir(paths.footprintDir);
+
+  // Determine footprint FIRST (needed for symbol generation)
+  const footprintResult = footprintConverter.getFootprint(component);
+  let footprintPath: string | undefined;
+  let footprintRef: string;
+
+  if (footprintResult.type === 'reference') {
+    // Use KiCad standard footprint
+    footprintRef = footprintResult.reference!;
+  } else {
+    // Custom footprint - will be saved later
+    const footprintName = footprintResult.name + '_' + params.lcsc_id;
+    footprintPath = join(paths.footprintDir, `${footprintName}.kicad_mod`);
+    footprintRef = getCategoryFootprintRef(footprintName);
+  }
+
+  // Update component info with full footprint reference (including library prefix)
+  component.info.package = footprintRef;
 
   // Handle category-based symbol library
   const symbolName = symbolConverter.getSymbolName(component);
@@ -323,20 +367,9 @@ export async function handleFetchLibrary(args: unknown) {
     await writeText(symbolFile, symbolContent);
   }
 
-  // Handle footprint using hybrid approach
-  const footprintResult = footprintConverter.getFootprint(component);
-  let footprintPath: string | undefined;
-  let footprintRef: string;
-
-  if (footprintResult.type === 'reference') {
-    // Use KiCad standard footprint - no custom file needed
-    footprintRef = footprintResult.reference!;
-  } else {
-    // Generate and save custom footprint
-    const footprintName = footprintResult.name + '_' + params.lcsc_id;
-    footprintPath = join(paths.footprintDir, `${footprintName}.kicad_mod`);
+  // Write custom footprint if needed (footprintResult determined earlier)
+  if (footprintResult.type === 'generated' && footprintPath) {
     await writeText(footprintPath, footprintResult.content!);
-    footprintRef = getCategoryFootprintRef(footprintName);
   }
 
   // Download 3D model if requested

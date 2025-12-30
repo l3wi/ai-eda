@@ -60,12 +60,20 @@ export interface EasyEDAComponentData {
     prefix: string;
     package?: string;
     manufacturer?: string;
-    datasheet?: string;
+    datasheet?: string;        // Product page URL
+    datasheetPdf?: string;     // Actual PDF datasheet URL
     lcscId?: string;
     jlcId?: string;
     description?: string;
     category?: string;
     attributes?: Record<string, string>;
+    // CDFER parity fields
+    stock?: number;
+    price?: number;
+    minOrderQty?: number;
+    process?: 'SMT' | 'THT';
+    partClass?: string;
+    partNumber?: string;
   };
   symbol: {
     pins: EasyEDAPin[];

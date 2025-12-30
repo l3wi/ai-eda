@@ -11,10 +11,11 @@ import { getSymbolTemplate, type SymbolTemplate } from './symbol-templates.js';
 // EasyEDA uses 10mil units (0.254mm per unit)
 const EE_TO_MM = 0.254;
 
-// Improved defaults for IC symbols (longer than KiCad standard 1.27mm)
-const IC_PIN_LENGTH = 2.54;  // mm (100 mil) - longer pins for better readability
-const IC_MIN_BODY_SIZE = 7.62;  // mm - minimum body dimension for ICs
-const IC_BODY_PADDING = 2.54;  // mm - padding from pin position to body edge
+// IC symbol layout constants (matching CDFER/KiCad conventions)
+const IC_PIN_LENGTH = 2.54;       // mm (100 mil) - standard pin length
+const IC_PIN_SPACING = 2.54;      // mm (100 mil) - vertical spacing between pins
+const IC_BODY_HALF_WIDTH = 12.7;  // mm (500 mil) - half body width (full = 25.4mm)
+const IC_PIN_FONT_SIZE = 1.0;     // mm - smaller font for pin names/numbers
 
 export interface SymbolConversionOptions {
   libraryName?: string;
@@ -28,6 +29,16 @@ interface BoundingBox {
   maxX: number;
   minY: number;
   maxY: number;
+}
+
+/**
+ * DIP-style IC layout with calculated pin positions
+ */
+interface ICLayout {
+  bodyWidth: number;
+  bodyHeight: number;
+  leftPins: Array<{ pin: EasyEDAPin; x: number; y: number }>;
+  rightPins: Array<{ pin: EasyEDAPin; x: number; y: number }>;
 }
 
 export class SymbolConverter {
@@ -85,6 +96,7 @@ export class SymbolConverter {
 
   /**
    * Generate symbol from EasyEDA data (for ICs and complex components)
+   * Uses DIP-style layout with pins on left and right sides
    */
   private generateFromEasyEDA(
     component: EasyEDAComponentData,
@@ -92,16 +104,151 @@ export class SymbolConverter {
   ): string {
     const { info, symbol } = component;
     const name = options.symbolName ? this.sanitizeName(options.symbolName) : this.sanitizeName(info.name);
-    const { origin } = symbol;
-    const bbox = this.calculateBoundingBox(symbol.pins, origin);
 
-    let output = this.generateSymbolStart(name);
+    // Calculate DIP-style layout
+    const layout = this.calculateICLayout(symbol.pins);
+
+    let output = this.generateSymbolStart(name, false); // Show pin numbers for ICs
     output += this.generateProperties(info, name);
-    output += this.generateGraphicsUnit(name, bbox);
-    output += this.generatePinsUnit(name, symbol.pins, origin);
+    output += this.generateICGraphics(name, layout);
+    output += this.generateICPins(name, layout);
     output += this.generateSymbolEnd();
 
     return output;
+  }
+
+  /**
+   * Calculate DIP-style IC layout from EasyEDA pins
+   * Matches CDFER layout: wide body, pins extending from edges
+   */
+  private calculateICLayout(pins: EasyEDAPin[]): ICLayout {
+    const pinCount = pins.length;
+    const halfPins = Math.ceil(pinCount / 2);
+
+    // Sort pins by pin number for proper DIP arrangement
+    const sortedPins = [...pins].sort((a, b) => {
+      const numA = parseInt(a.number) || 0;
+      const numB = parseInt(b.number) || 0;
+      return numA - numB;
+    });
+
+    // Calculate body dimensions (matching CDFER style)
+    // Height based on pin count: top pin at (halfPins-1)*spacing, bottom at 0
+    // Add padding above top pin and below bottom pin
+    const topY = (halfPins - 1) * IC_PIN_SPACING;
+    const bodyHeight = topY + IC_PIN_SPACING * 2; // Add padding top and bottom
+    const bodyWidth = IC_BODY_HALF_WIDTH * 2;
+    const halfHeight = bodyHeight / 2;
+
+    // Pin X positions (body edge + pin length)
+    const leftX = roundTo(-(IC_BODY_HALF_WIDTH + IC_PIN_LENGTH), 2);
+    const rightX = roundTo(IC_BODY_HALF_WIDTH + IC_PIN_LENGTH, 2);
+
+    // Split pins: 1 to n/2 on left (top to bottom), rest on right (bottom to top)
+    const leftPins: ICLayout['leftPins'] = [];
+    const rightPins: ICLayout['rightPins'] = [];
+
+    for (let i = 0; i < sortedPins.length; i++) {
+      const pin = sortedPins[i];
+      if (i < halfPins) {
+        // Left side pins (top to bottom): pin 1 at top
+        const y = topY - (i * IC_PIN_SPACING);
+        leftPins.push({ pin, x: leftX, y: roundTo(y, 3) });
+      } else {
+        // Right side pins (bottom to top): continues from bottom
+        const rightIndex = i - halfPins;
+        const y = rightIndex * IC_PIN_SPACING;
+        rightPins.push({ pin, x: rightX, y: roundTo(y, 3) });
+      }
+    }
+
+    return { bodyWidth, bodyHeight, leftPins, rightPins };
+  }
+
+  /**
+   * Generate IC body rectangle and pins in single _0_1 unit (CDFER style)
+   */
+  private generateICGraphics(name: string, layout: ICLayout): string {
+    // Body: extends from bottom pin - padding to top pin + padding
+    const topPinY = layout.leftPins[0]?.y ?? 0;
+    const bottomPinY = layout.leftPins[layout.leftPins.length - 1]?.y ?? 0;
+    const bodyTop = topPinY + IC_PIN_SPACING;
+    const bodyBottom = bottomPinY - IC_PIN_SPACING;
+
+    let output = `\t\t(symbol "${name}_0_1"
+\t\t\t(rectangle
+\t\t\t\t(start ${-IC_BODY_HALF_WIDTH} ${roundTo(bodyTop, 2)})
+\t\t\t\t(end ${IC_BODY_HALF_WIDTH} ${roundTo(bodyBottom, 2)})
+\t\t\t\t(stroke
+\t\t\t\t\t(width 0)
+\t\t\t\t\t(type default)
+\t\t\t\t)
+\t\t\t\t(fill
+\t\t\t\t\t(type background)
+\t\t\t\t)
+\t\t\t)
+`;
+
+    // Add all pins to _0_1 unit (CDFER style - no separate _1_1 unit)
+    // Left side pins (pointing right, rotation 0)
+    for (const { pin, x, y } of layout.leftPins) {
+      const pinType = this.mapPinType(pin.electricalType);
+      output += `\t\t\t(pin ${pinType} line
+\t\t\t\t(at ${x} ${y} 0)
+\t\t\t\t(length ${IC_PIN_LENGTH})
+\t\t\t\t(name "${this.sanitizePinName(pin.name)}"
+\t\t\t\t\t(effects
+\t\t\t\t\t\t(font
+\t\t\t\t\t\t\t(size ${IC_PIN_FONT_SIZE} ${IC_PIN_FONT_SIZE})
+\t\t\t\t\t\t)
+\t\t\t\t\t)
+\t\t\t\t)
+\t\t\t\t(number "${pin.number}"
+\t\t\t\t\t(effects
+\t\t\t\t\t\t(font
+\t\t\t\t\t\t\t(size ${IC_PIN_FONT_SIZE} ${IC_PIN_FONT_SIZE})
+\t\t\t\t\t\t)
+\t\t\t\t\t)
+\t\t\t\t)
+\t\t\t)
+`;
+    }
+
+    // Right side pins (pointing left, rotation 180)
+    for (const { pin, x, y } of layout.rightPins) {
+      const pinType = this.mapPinType(pin.electricalType);
+      output += `\t\t\t(pin ${pinType} line
+\t\t\t\t(at ${x} ${y} 180)
+\t\t\t\t(length ${IC_PIN_LENGTH})
+\t\t\t\t(name "${this.sanitizePinName(pin.name)}"
+\t\t\t\t\t(effects
+\t\t\t\t\t\t(font
+\t\t\t\t\t\t\t(size ${IC_PIN_FONT_SIZE} ${IC_PIN_FONT_SIZE})
+\t\t\t\t\t\t)
+\t\t\t\t\t)
+\t\t\t\t)
+\t\t\t\t(number "${pin.number}"
+\t\t\t\t\t(effects
+\t\t\t\t\t\t(font
+\t\t\t\t\t\t\t(size ${IC_PIN_FONT_SIZE} ${IC_PIN_FONT_SIZE})
+\t\t\t\t\t\t)
+\t\t\t\t\t)
+\t\t\t\t)
+\t\t\t)
+`;
+    }
+
+    output += `\t\t)
+`;
+    return output;
+  }
+
+  /**
+   * Generate empty IC pins unit (pins are in _0_1 for CDFER compatibility)
+   */
+  private generateICPins(name: string, layout: ICLayout): string {
+    // No _1_1 unit needed - all pins in _0_1
+    return '';
   }
 
   /**
@@ -170,14 +317,23 @@ export class SymbolConverter {
   /**
    * Generate symbol start - NO library prefix in symbol name
    */
-  private generateSymbolStart(name: string): string {
-    return `\t(symbol "${name}"
+  private generateSymbolStart(name: string, hideNumbers = true): string {
+    // For passives, hide pin numbers; for ICs, show them (CDFER style)
+    if (hideNumbers) {
+      return `\t(symbol "${name}"
 \t\t(pin_numbers
 \t\t\t(hide yes)
 \t\t)
 \t\t(pin_names
 \t\t\t(offset 0)
 \t\t)
+\t\t(exclude_from_sim no)
+\t\t(in_bom yes)
+\t\t(on_board yes)
+`;
+    }
+    // IC style - no pin_numbers/pin_names sections (show by default)
+    return `\t(symbol "${name}"
 \t\t(exclude_from_sim no)
 \t\t(in_bom yes)
 \t\t(on_board yes)
@@ -199,9 +355,10 @@ export class SymbolConverter {
       info.category
     );
 
-    // Reference property
-    props += `\t\t(property "Reference" "${info.prefix}"
-\t\t\t(at 2.032 0 90)
+    // Reference property - centered above body (CDFER style, no "?" suffix)
+    const refDesignator = (info.prefix || 'U').replace(/\?$/, '');
+    props += `\t\t(property "Reference" "${refDesignator}"
+\t\t\t(at 0 10.16 0)
 \t\t\t(effects
 \t\t\t\t(font
 \t\t\t\t\t(size ${ts} ${ts})
@@ -210,9 +367,9 @@ export class SymbolConverter {
 \t\t)
 `;
 
-    // Value property - use normalized value for passives
+    // Value property - centered below reference (CDFER style)
     props += `\t\t(property "Value" "${this.sanitizeText(displayValue)}"
-\t\t\t(at 0 0 90)
+\t\t\t(at 0 7.62 0)
 \t\t\t(effects
 \t\t\t\t(font
 \t\t\t\t\t(size ${ts} ${ts})
@@ -233,8 +390,9 @@ export class SymbolConverter {
 \t\t)
 `;
 
-    // Datasheet property
-    props += `\t\t(property "Datasheet" "${info.datasheet || '~'}"
+    // Datasheet property - prefer JLC API PDF URL, fallback to constructed URL
+    const datasheetUrl = info.datasheetPdf || (info.lcscId ? `https://www.lcsc.com/datasheet/${info.lcscId}.pdf` : '~');
+    props += `\t\t(property "Datasheet" "${datasheetUrl}"
 \t\t\t(at 0 0 0)
 \t\t\t(effects
 \t\t\t\t(font
@@ -244,6 +402,20 @@ export class SymbolConverter {
 \t\t\t)
 \t\t)
 `;
+
+    // Product Page property - link to LCSC product page
+    if (info.datasheet) {
+      props += `\t\t(property "Product Page" "${info.datasheet}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
 
     // Description property - use actual description if available
     const description = info.description || info.name;
@@ -289,6 +461,111 @@ export class SymbolConverter {
     // Category property
     if (info.category) {
       props += `\t\t(property "Category" "${this.sanitizeText(info.category)}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    // ki_keywords property - LCSC ID for searchability (CDFER style)
+    if (info.lcscId) {
+      props += `\t\t(property "ki_keywords" "${info.lcscId}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    // CDFER parity properties
+    if (info.stock !== undefined) {
+      props += `\t\t(property "Stock" "${info.stock}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    if (info.price !== undefined) {
+      props += `\t\t(property "Price" "${info.price}USD"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    if (info.process) {
+      props += `\t\t(property "Process" "${info.process}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    if (info.minOrderQty !== undefined) {
+      props += `\t\t(property "Minimum Qty" "${info.minOrderQty}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    // Attrition Qty - always add with default 0
+    props += `\t\t(property "Attrition Qty" "0"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+
+    if (info.partClass) {
+      props += `\t\t(property "Class" "${this.sanitizeText(info.partClass)}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    if (info.partNumber) {
+      props += `\t\t(property "Part" "${this.sanitizeText(info.partNumber)}"
 \t\t\t(at 0 0 0)
 \t\t\t(effects
 \t\t\t\t(font
@@ -469,8 +746,9 @@ export class SymbolConverter {
       info.category
     );
 
-    // Reference property - positioned from template
-    props += `\t\t(property "Reference" "${info.prefix}"
+    // Reference property - positioned from template (no "?" suffix)
+    const refDesignator = (info.prefix || 'U').replace(/\?$/, '');
+    props += `\t\t(property "Reference" "${refDesignator}"
 \t\t\t(at ${template.refPosition.x} ${template.refPosition.y} ${template.refPosition.angle})
 \t\t\t(effects
 \t\t\t\t(font
@@ -503,8 +781,9 @@ export class SymbolConverter {
 \t\t)
 `;
 
-    // Datasheet property
-    props += `\t\t(property "Datasheet" "${info.datasheet || '~'}"
+    // Datasheet property - prefer JLC API PDF URL, fallback to constructed URL
+    const datasheetUrl = info.datasheetPdf || (info.lcscId ? `https://www.lcsc.com/datasheet/${info.lcscId}.pdf` : '~');
+    props += `\t\t(property "Datasheet" "${datasheetUrl}"
 \t\t\t(at 0 0 0)
 \t\t\t(effects
 \t\t\t\t(font
@@ -514,6 +793,20 @@ export class SymbolConverter {
 \t\t\t)
 \t\t)
 `;
+
+    // Product Page property - link to LCSC product page
+    if (info.datasheet) {
+      props += `\t\t(property "Product Page" "${info.datasheet}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
 
     // Description property
     const description = info.description || info.name;
@@ -554,6 +847,141 @@ export class SymbolConverter {
 \t\t\t)
 \t\t)
 `;
+    }
+
+    // Category property
+    if (info.category) {
+      props += `\t\t(property "Category" "${this.sanitizeText(info.category)}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    // ki_keywords property - LCSC ID for searchability (CDFER style)
+    if (info.lcscId) {
+      props += `\t\t(property "ki_keywords" "${info.lcscId}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    // CDFER parity properties
+    if (info.stock !== undefined) {
+      props += `\t\t(property "Stock" "${info.stock}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    if (info.price !== undefined) {
+      props += `\t\t(property "Price" "${info.price}USD"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    if (info.process) {
+      props += `\t\t(property "Process" "${info.process}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    if (info.minOrderQty !== undefined) {
+      props += `\t\t(property "Minimum Qty" "${info.minOrderQty}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    // Attrition Qty - always add with default 0
+    props += `\t\t(property "Attrition Qty" "0"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+
+    if (info.partClass) {
+      props += `\t\t(property "Class" "${this.sanitizeText(info.partClass)}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    if (info.partNumber) {
+      props += `\t\t(property "Part" "${this.sanitizeText(info.partNumber)}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+    }
+
+    // Component attributes as custom properties
+    if (info.attributes) {
+      for (const [key, value] of Object.entries(info.attributes)) {
+        props += `\t\t(property "${this.sanitizeText(key)}" "${this.sanitizeText(String(value))}"
+\t\t\t(at 0 0 0)
+\t\t\t(effects
+\t\t\t\t(font
+\t\t\t\t\t(size ${ts} ${ts})
+\t\t\t\t)
+\t\t\t\t(hide yes)
+\t\t\t)
+\t\t)
+`;
+      }
     }
 
     return props;
