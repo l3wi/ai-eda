@@ -50,7 +50,8 @@ Available MCP tools:
 - `/mcp__kicad-sch__search_symbols` - Search local KiCad symbol libraries (JLCPCB, etc.)
 - `/mcp__jlc__component_search` - Search JLC online with `query`, `basic_only`, `in_stock`, `limit`
 - `/mcp__jlc__component_get` - Get online component details with `lcsc_id`
-- `/mcp__jlc__library_fetch` - Fetch KiCad symbol/footprint from online
+- `/mcp__jlc__library_fetch` - Fetch KiCad symbol/footprint from online (returns `validation_data`)
+- `/mcp__jlc__library_fix` - Fix symbol issues (add pins, rename, change types)
 
 **Do NOT use Bash. Do NOT use WebSearch for components.**
 
@@ -163,18 +164,79 @@ For online components, fetch the KiCad symbol and footprint:
 /mcp__jlc__library_fetch lcsc_id="C#####" include_3d=true
 ```
 
-This saves to the **global EDA-MCP library** (automatically discovered by kicad-mcp):
-- `~/Documents/KiCad/9.0/symbols/EDA-MCP.kicad_sym` - Unified symbol library
-- `~/Documents/KiCad/9.0/footprints/EDA-MCP.pretty/<NAME>_<LCSC_ID>.kicad_mod` - PCB footprint
-- `~/Documents/KiCad/9.0/3dmodels/EDA-MCP.3dshapes/<LCSC_ID>.step` - 3D model (if available)
+This saves to the **global JLC library** (automatically discovered by kicad-mcp):
+- `~/Documents/KiCad/9.0/symbols/JLC-*.kicad_sym` - Category-based symbol libraries
+- `~/Documents/KiCad/9.0/footprints/JLC.pretty/<NAME>_<LCSC_ID>.kicad_mod` - PCB footprint
+- `~/Documents/KiCad/9.0/3dmodels/JLC.3dshapes/<LCSC_ID>.step` - 3D model (if available)
 
 The response includes:
-- `symbol_ref`: Reference for kicad-mcp (e.g., `EDA-MCP:ESP32-C3`)
-- `footprint_ref`: Footprint reference (e.g., `EDA-MCP:QFN-32_C2838386`)
+- `symbol_ref`: Reference for kicad-mcp (e.g., `JLC-ICs:ESP32-C3`)
+- `footprint_ref`: Footprint reference (e.g., `Package_DFN_QFN:QFN-56-1EP_7x7mm_P0.4mm`)
+- `validation_data`: Symbol/footprint quality data for analysis (see below)
 
 **For project-local storage** (optional):
 ```
 /mcp__jlc__library_fetch lcsc_id="C#####" project_path="/path/to/project" include_3d=true
+```
+
+### 6.5 Validate Symbol Quality
+
+After fetching, **analyze the `validation_data`** in the response:
+
+```json
+{
+  "validation_data": {
+    "symbol": { "pin_count": 39, "pins": [...] },
+    "footprint": { "pad_count": 57, "is_kicad_standard": true },
+    "checks": {
+      "pin_pad_count_match": false,
+      "has_power_pins": true,
+      "has_ground_pins": true
+    }
+  }
+}
+```
+
+**Quick checks:**
+- `pin_pad_count_match: false` ⚠️ - Pin/pad mismatch, investigate
+- `has_power_pins: false` ⚠️ - IC missing power pin types
+- `has_ground_pins: false` ⚠️ - IC missing ground pins
+
+**Common issues and fixes:**
+
+| Issue | Cause | Fix Action |
+|-------|-------|------------|
+| Pin count < Pad count | QFN/BGA exposed pad (EP) not in symbol | Add EP pin |
+| Power pins marked passive | Source data incorrect | Modify pin type |
+| Pin names wrong | Source data error | Rename pins |
+
+### 6.6 Fix Symbol Issues (library_fix)
+
+If validation issues detected, use `library_fix` to regenerate with corrections:
+
+```
+/mcp__jlc__library_fix lcsc_id="C#####" corrections='{
+  "pins": [
+    { "action": "add", "number": "EP", "name": "GND", "type": "passive" },
+    { "action": "modify", "number": "1", "set_type": "power_in" },
+    { "action": "modify", "number": "2", "rename": "VDD", "set_type": "power_in" }
+  ]
+}'
+```
+
+**Correction actions:**
+- `add` - Add missing pin (e.g., exposed thermal pad)
+- `modify` - Rename pin or change electrical type
+- `swap` - Swap positions of two pins
+- `remove` - Remove incorrect pin
+
+**Example: ESP32-S3 QFN-56 with missing EP:**
+```
+Response shows: 39 symbol pins vs 57 footprint pads (pin_pad_count_match: false)
+Analysis: QFN-56 has exposed thermal pad (EP) for heat dissipation, not in symbol
+
+Fix:
+/mcp__jlc__library_fix lcsc_id="C2913199" corrections='{"pins":[{"action":"add","number":"EP","name":"GND","type":"passive"}]}'
 ```
 
 ## Output

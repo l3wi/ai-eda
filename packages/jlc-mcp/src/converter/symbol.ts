@@ -297,6 +297,76 @@ export class SymbolConverter {
   }
 
   /**
+   * Replace an existing symbol in a library with a new version
+   * If the symbol doesn't exist, it will be appended
+   */
+  replaceInLibrary(
+    existingLibraryContent: string,
+    component: EasyEDAComponentData,
+    options: SymbolConversionOptions = {}
+  ): string {
+    const sanitizedName = this.sanitizeName(component.info.name);
+
+    // Check if symbol exists
+    if (!this.symbolExistsInLibrary(existingLibraryContent, component.info.name)) {
+      // Symbol doesn't exist, just append it
+      return this.appendToLibrary(existingLibraryContent, component, options);
+    }
+
+    // Remove the existing symbol
+    // Symbol format: (symbol "NAME" ... ) with nested parens
+    // We need to find the start and match balanced parens to find the end
+
+    const symbolStart = existingLibraryContent.indexOf(`(symbol "${sanitizedName}"`);
+    if (symbolStart === -1) {
+      // Shouldn't happen since we checked above, but fallback to append
+      return this.appendToLibrary(existingLibraryContent, component, options);
+    }
+
+    // Find the matching closing paren by counting balance
+    let depth = 0;
+    let symbolEnd = symbolStart;
+    let inString = false;
+    let prevChar = '';
+
+    for (let i = symbolStart; i < existingLibraryContent.length; i++) {
+      const char = existingLibraryContent[i];
+
+      // Handle string escaping
+      if (char === '"' && prevChar !== '\\') {
+        inString = !inString;
+      }
+
+      if (!inString) {
+        if (char === '(') depth++;
+        if (char === ')') {
+          depth--;
+          if (depth === 0) {
+            symbolEnd = i + 1;
+            break;
+          }
+        }
+      }
+
+      prevChar = char;
+    }
+
+    // Remove the old symbol (including any trailing newline)
+    let contentWithoutOldSymbol = existingLibraryContent.slice(0, symbolStart);
+    let afterSymbol = existingLibraryContent.slice(symbolEnd);
+
+    // Trim leading newlines from afterSymbol to avoid double spacing
+    while (afterSymbol.startsWith('\n')) {
+      afterSymbol = afterSymbol.slice(1);
+    }
+
+    contentWithoutOldSymbol = contentWithoutOldSymbol + afterSymbol;
+
+    // Now append the new version
+    return this.appendToLibrary(contentWithoutOldSymbol, component, options);
+  }
+
+  /**
    * Get the sanitized symbol name for a component
    */
   getSymbolName(component: EasyEDAComponentData): string {

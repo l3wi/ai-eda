@@ -21,6 +21,10 @@ import {
   updateLibraryTool,
   handleUpdateLibrary,
 } from './library-update.js';
+import {
+  fixLibraryTool,
+  handleFixLibrary,
+} from './library-fix.js';
 
 // Import EasyEDA community tools
 import {
@@ -43,6 +47,7 @@ export const tools: Tool[] = [
   getFootprintKicadTool,
   fetchLibraryTool,
   updateLibraryTool,
+  fixLibraryTool,
   get3DModelTool,
   // EasyEDA community library
   easyedaSearchTool,
@@ -63,6 +68,7 @@ export const toolHandlers: Record<string, (args: unknown) => Promise<{
   library_get_footprint: handleGetFootprintKicad,
   library_fetch: handleFetchLibrary,
   library_update: handleUpdateLibrary,
+  library_fix: handleFixLibrary,
   library_get_3d_model: handleGet3DModel,
   // EasyEDA community library
   easyeda_search: handleEasyedaSearch,
@@ -88,6 +94,10 @@ export {
   updateLibraryTool,
   handleUpdateLibrary,
 } from './library-update.js';
+export {
+  fixLibraryTool,
+  handleFixLibrary,
+} from './library-fix.js';
 export {
   easyedaSearchTool,
   easyedaGetTool,

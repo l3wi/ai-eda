@@ -394,6 +394,47 @@ export async function handleFetchLibrary(args: unknown) {
   // Generate symbol reference with category
   const symbolRef = getCategorySymbolRef(category, symbolName);
 
+  // Build validation data for Claude to analyze
+  const validationData = {
+    component: {
+      name: component.info.name,
+      description: component.info.description,
+      package: component.info.package,
+      manufacturer: component.info.manufacturer,
+      datasheet_url: component.info.datasheetPdf || component.info.datasheet,
+    },
+    symbol: {
+      pin_count: component.symbol.pins.length,
+      pins: component.symbol.pins.map(p => ({
+        number: p.number,
+        name: p.name,
+        electrical_type: p.electricalType,
+      })),
+    },
+    footprint: {
+      type: component.footprint.type,
+      pad_count: component.footprint.pads.length,
+      // Only include pads for custom-generated footprints
+      pads: footprintResult.type === 'generated'
+        ? component.footprint.pads.map(p => ({
+            number: p.number,
+            shape: p.shape,
+          }))
+        : null,  // Skip for KiCad standard refs
+      is_kicad_standard: footprintResult.type === 'reference',
+      kicad_ref: footprintRef,
+    },
+    checks: {
+      pin_pad_count_match: component.symbol.pins.length === component.footprint.pads.length,
+      has_power_pins: component.symbol.pins.some(p =>
+        p.electricalType === 'power_in' || p.electricalType === 'power_out'
+      ),
+      has_ground_pins: component.symbol.pins.some(p =>
+        p.name.toLowerCase().includes('gnd') || p.name.toLowerCase().includes('vss')
+      ),
+    },
+  };
+
   return {
     content: [{
       type: 'text' as const,
@@ -417,6 +458,7 @@ export async function handleFetchLibrary(args: unknown) {
           fp_lib_table: fpTableResult,
         },
         symbol_action: symbolAction,
+        validation_data: validationData,
       }, null, 2),
     }],
   };

@@ -119,6 +119,41 @@ Include recommendation with rationale.
 - Update constraint file
 - Save datasheet
 
+### 8. Validate Symbol (After library_fetch)
+
+When fetching online components with `mcp__jlc__library_fetch`, **analyze the returned `validation_data`**:
+
+**Quick checks:**
+| Check | Expected | Action if Failed |
+|-------|----------|------------------|
+| `pin_pad_count_match` | `true` | Check for exposed pads (EP) |
+| `has_power_pins` | `true` (for ICs) | Review pin types |
+| `has_ground_pins` | `true` (for ICs) | Review pin names |
+
+**Common issues:**
+- **QFN/BGA packages** often have exposed thermal pads (EP) not included in symbol
+- **Pin electrical types** may be incorrect (power pins marked as passive)
+- **Pin names** may not match datasheet
+
+**Fixing with library_fix:**
+
+Use `mcp__jlc__library_fix` to regenerate symbol with corrections:
+
+```
+mcp__jlc__library_fix lcsc_id="C#####" corrections='{
+  "pins": [
+    { "action": "add", "number": "EP", "name": "GND", "type": "passive" },
+    { "action": "modify", "number": "1", "set_type": "power_in" }
+  ]
+}'
+```
+
+**Correction actions:**
+- `add` - Add missing pin (number, name, type required)
+- `modify` - Rename and/or change electrical type
+- `swap` - Swap positions of two pins
+- `remove` - Remove incorrect pin
+
 ## Output Format
 
 ### component-selections.md Entry
