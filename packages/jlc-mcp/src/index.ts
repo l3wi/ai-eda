@@ -19,7 +19,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { tools, toolHandlers } from './tools/index.js';
-import { createLogger } from 'ai-eda-common';
+import { createLogger } from './common/index.js';
 
 const logger = createLogger('jlc-mcp');
 

@@ -1,6 +1,5 @@
 /**
- * ai-eda-common
- * Shared types, utilities, and constants for the AI-EDA toolkit
+ * Common utilities, types, and constants for jlc-mcp
  */
 
 // Export all types

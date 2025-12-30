@@ -1,35 +1,41 @@
 /**
  * Library fetching and conversion tools for MCP
- * Manages a unified EDA-MCP library that accumulates components
+ * Manages category-based JLC libraries that accumulate components
  *
  * By default, components are stored in global KiCad library paths:
- * ~/Documents/KiCad/{version}/symbols/EDA-MCP.kicad_sym
+ * ~/Documents/KiCad/{version}/symbols/JLC-Resistors.kicad_sym
+ * ~/Documents/KiCad/{version}/symbols/JLC-Capacitors.kicad_sym
+ * etc.
  *
  * This matches kicad-sch-mcp's search pattern for automatic discovery.
  */
 
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
-import { homedir, platform } from 'os';
+import { homedir } from 'os';
 import { easyedaClient } from '../api/easyeda.js';
 import { symbolConverter } from '../converter/symbol.js';
 import { footprintConverter } from '../converter/footprint.js';
 import {
   ensureSymLibTable,
   ensureFpLibTable,
-  getSymbolReference,
-  getFootprintReference,
 } from '../converter/lib-table.js';
-import { ensureDir, writeText, writeBinary } from 'ai-eda-common';
+import {
+  getLibraryCategory,
+  getLibraryFilename,
+  getFootprintDirName,
+  get3DModelsDirName,
+  getSymbolReference as getCategorySymbolRef,
+  getFootprintReference as getCategoryFootprintRef,
+} from '../converter/category-router.js';
+import { ensureDir, writeText, writeBinary } from '../common/index.js';
 import { join } from 'path';
 
-// Library naming - matches kicad-sch-mcp search pattern
-const LIBRARY_NAME = 'EDA-MCP';
-const SYMBOL_LIBRARY_NAME = `${LIBRARY_NAME}.kicad_sym`;
-const FOOTPRINT_LIBRARY_NAME = `${LIBRARY_NAME}.pretty`;
-const MODELS_3D_NAME = `${LIBRARY_NAME}.3dshapes`;
+// Library naming - JLC prefix for all libraries
+const FOOTPRINT_LIBRARY_NAME = getFootprintDirName();  // "JLC.pretty"
+const MODELS_3D_NAME = get3DModelsDirName();           // "JLC.3dshapes"
 
 // KiCad versions to check (newest first)
 const KICAD_VERSIONS = ['9.0', '8.0'];
@@ -50,18 +56,22 @@ function detectKicadVersion(): string {
 }
 
 /**
- * Get global library paths for the EDA-MCP library
- * These paths match kicad-sch-mcp's search pattern
+ * Library paths structure (no longer includes symbolFile since it's category-based)
  */
-function getGlobalLibraryPaths(): {
+interface LibraryPaths {
   base: string;
   symbolsDir: string;
   footprintsDir: string;
   models3dDir: string;
-  symbolFile: string;
   footprintDir: string;
   models3dFullDir: string;
-} {
+}
+
+/**
+ * Get global library paths for JLC libraries
+ * These paths match kicad-sch-mcp's search pattern
+ */
+function getGlobalLibraryPaths(): LibraryPaths {
   const home = homedir();
   const version = detectKicadVersion();
   const base = join(home, 'Documents', 'KiCad', version);
@@ -71,25 +81,15 @@ function getGlobalLibraryPaths(): {
     symbolsDir: join(base, 'symbols'),
     footprintsDir: join(base, 'footprints'),
     models3dDir: join(base, '3dmodels'),
-    // Full paths to our specific library
-    symbolFile: join(base, 'symbols', SYMBOL_LIBRARY_NAME),
     footprintDir: join(base, 'footprints', FOOTPRINT_LIBRARY_NAME),
     models3dFullDir: join(base, '3dmodels', MODELS_3D_NAME),
   };
 }
 
 /**
- * Get project-local library paths (legacy mode)
+ * Get project-local library paths
  */
-function getProjectLibraryPaths(projectPath: string): {
-  base: string;
-  symbolsDir: string;
-  footprintsDir: string;
-  models3dDir: string;
-  symbolFile: string;
-  footprintDir: string;
-  models3dFullDir: string;
-} {
+function getProjectLibraryPaths(projectPath: string): LibraryPaths {
   const librariesDir = join(projectPath, 'libraries');
 
   return {
@@ -97,7 +97,6 @@ function getProjectLibraryPaths(projectPath: string): {
     symbolsDir: join(librariesDir, 'symbols'),
     footprintsDir: join(librariesDir, 'footprints'),
     models3dDir: join(librariesDir, '3dmodels'),
-    symbolFile: join(librariesDir, 'symbols', SYMBOL_LIBRARY_NAME),
     footprintDir: join(librariesDir, 'footprints', FOOTPRINT_LIBRARY_NAME),
     models3dFullDir: join(librariesDir, '3dmodels', MODELS_3D_NAME),
   };
@@ -135,14 +134,18 @@ export const getFootprintKicadTool: Tool = {
 
 export const fetchLibraryTool: Tool = {
   name: 'library_fetch',
-  description: `Fetch an LCSC component and add it to the EDA-MCP library.
+  description: `Fetch an LCSC component and add it to category-based JLC libraries.
 
 Uses LCSC part numbers (e.g., C2040) because LCSC is JLC PCB's preferred supplier for assembly.
 Components fetched via LCSC are guaranteed to be available for JLC PCBA service.
 
-By default, saves to global KiCad library at ~/Documents/KiCad/{version}/symbols/EDA-MCP.kicad_sym.
-This location is automatically discovered by kicad-sch-mcp (used by kicad-mcp).
+Components are routed to category-based libraries:
+- JLC-Resistors.kicad_sym, JLC-Capacitors.kicad_sym, JLC-ICs.kicad_sym, etc.
 
+For standard packages (0603, 0805, SOIC-8, etc.), uses KiCad built-in footprints.
+Custom footprints are generated for non-standard packages.
+
+By default, saves to global KiCad library at ~/Documents/KiCad/{version}/symbols/.
 Optionally specify project_path for project-local storage.
 
 Returns symbol_ref and footprint_ref for immediate use with add_schematic_component.`,
@@ -275,19 +278,30 @@ export async function handleFetchLibrary(args: unknown) {
     };
   }
 
+  // Determine component category for library routing
+  const category = getLibraryCategory(
+    component.info.prefix,
+    component.info.category,
+    component.info.description
+  );
+
+  // Get category-specific symbol library path
+  const symbolLibraryFilename = getLibraryFilename(category);
+  const symbolFile = join(paths.symbolsDir, symbolLibraryFilename);
+
   // Ensure directories exist
   await ensureDir(paths.symbolsDir);
   await ensureDir(paths.footprintDir);
 
-  // Handle unified symbol library
+  // Handle category-based symbol library
   const symbolName = symbolConverter.getSymbolName(component);
 
   let symbolContent: string;
   let symbolAction: 'created' | 'appended' | 'exists';
 
-  if (existsSync(paths.symbolFile)) {
+  if (existsSync(symbolFile)) {
     // Read existing library
-    const existingContent = await readFile(paths.symbolFile, 'utf-8');
+    const existingContent = await readFile(symbolFile, 'utf-8');
 
     // Check if symbol already exists
     if (symbolConverter.symbolExistsInLibrary(existingContent, component.info.name)) {
@@ -306,14 +320,24 @@ export async function handleFetchLibrary(args: unknown) {
 
   // Write symbol library if changed
   if (symbolAction !== 'exists') {
-    await writeText(paths.symbolFile, symbolContent);
+    await writeText(symbolFile, symbolContent);
   }
 
-  // Generate and save footprint (individual files in .pretty directory)
-  const footprint = footprintConverter.convert(component);
-  const footprintName = component.footprint.name.replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + params.lcsc_id;
-  const footprintPath = join(paths.footprintDir, `${footprintName}.kicad_mod`);
-  await writeText(footprintPath, footprint);
+  // Handle footprint using hybrid approach
+  const footprintResult = footprintConverter.getFootprint(component);
+  let footprintPath: string | undefined;
+  let footprintRef: string;
+
+  if (footprintResult.type === 'reference') {
+    // Use KiCad standard footprint - no custom file needed
+    footprintRef = footprintResult.reference!;
+  } else {
+    // Generate and save custom footprint
+    const footprintName = footprintResult.name + '_' + params.lcsc_id;
+    footprintPath = join(paths.footprintDir, `${footprintName}.kicad_mod`);
+    await writeText(footprintPath, footprintResult.content!);
+    footprintRef = getCategoryFootprintRef(footprintName);
+  }
 
   // Download 3D model if requested
   let modelPath: string | undefined;
@@ -330,13 +354,12 @@ export async function handleFetchLibrary(args: unknown) {
   let symTableResult = null;
   let fpTableResult = null;
   if (!isGlobal && params.project_path) {
-    symTableResult = await ensureSymLibTable(params.project_path, paths.symbolFile);
+    symTableResult = await ensureSymLibTable(params.project_path, symbolFile);
     fpTableResult = await ensureFpLibTable(params.project_path, paths.footprintDir);
   }
 
-  // Generate references for immediate use
-  const symbolRef = getSymbolReference(symbolName);
-  const footprintRef = getFootprintReference(footprintName);
+  // Generate symbol reference with category
+  const symbolRef = getCategorySymbolRef(category, symbolName);
 
   return {
     content: [{
@@ -345,13 +368,15 @@ export async function handleFetchLibrary(args: unknown) {
         success: true,
         lcsc_id: params.lcsc_id,
         storage_mode: isGlobal ? 'global' : 'project-local',
+        category,
         symbol_name: symbolName,
         symbol_ref: symbolRef,
         footprint_ref: footprintRef,
+        footprint_type: footprintResult.type,  // 'reference' or 'generated'
         datasheet: component.info.datasheet || `https://www.lcsc.com/datasheet/lcsc_datasheet_${params.lcsc_id}.pdf`,
         files: {
-          symbol_library: paths.symbolFile,
-          footprint: footprintPath,
+          symbol_library: symbolFile,
+          footprint: footprintPath,  // undefined if using KiCad standard
           model_3d: modelPath,
         },
         library_tables: isGlobal ? null : {

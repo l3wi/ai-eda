@@ -3,8 +3,9 @@
  * Converts EasyEDA footprint format to KiCad .kicad_mod format
  */
 
-import type { EasyEDAComponentData, EasyEDAPad } from 'ai-eda-common';
-import { KICAD_FOOTPRINT_VERSION, KICAD_LAYERS, roundTo } from 'ai-eda-common';
+import type { EasyEDAComponentData, EasyEDAPad } from '../common/index.js';
+import { KICAD_FOOTPRINT_VERSION, KICAD_LAYERS, roundTo } from '../common/index.js';
+import { mapToKicadFootprint, getKicadFootprintRef } from './footprint-mapper.js';
 
 // EasyEDA uses 10mil units
 const EE_TO_MM = 0.254;
@@ -13,6 +14,19 @@ export interface FootprintConversionOptions {
   libraryName?: string;
   include3DModel?: boolean;
   modelPath?: string;
+}
+
+/**
+ * Result of footprint resolution - either a KiCad standard reference or generated content
+ */
+export interface FootprintResult {
+  type: 'reference' | 'generated';
+  /** KiCad standard footprint reference (e.g., "Resistor_SMD:R_0603_1608Metric") */
+  reference?: string;
+  /** Generated .kicad_mod content for custom footprints */
+  content?: string;
+  /** Footprint name for file naming */
+  name: string;
 }
 
 interface BoundingBox {
@@ -84,6 +98,42 @@ export class FootprintConverter {
     output += `)`;
 
     return output;
+  }
+
+  /**
+   * Get footprint using hybrid approach:
+   * - Use KiCad standard footprint if available (for common packages)
+   * - Generate custom footprint if no standard mapping exists
+   */
+  getFootprint(
+    component: EasyEDAComponentData,
+    options: FootprintConversionOptions = {}
+  ): FootprintResult {
+    const { info, footprint } = component;
+    const packageName = footprint.name;
+    const prefix = info.prefix;
+
+    // Try to map to KiCad standard footprint
+    const mapping = mapToKicadFootprint(packageName, prefix);
+
+    if (mapping) {
+      // Use KiCad standard footprint - no need to generate custom
+      return {
+        type: 'reference',
+        reference: getKicadFootprintRef(mapping),
+        name: mapping.footprint,
+      };
+    }
+
+    // Generate custom footprint from EasyEDA data
+    const content = this.convert(component, options);
+    const name = this.sanitizeName(footprint.name);
+
+    return {
+      type: 'generated',
+      content,
+      name,
+    };
   }
 
   /**

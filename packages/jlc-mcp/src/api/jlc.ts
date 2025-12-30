@@ -3,8 +3,8 @@
  * Uses JLCPCB's parts library API which provides LCSC component data
  */
 
-import type { LCSCSearchOptions, ComponentSearchResult } from 'ai-eda-common';
-import { createLogger } from 'ai-eda-common';
+import type { LCSCSearchOptions, ComponentSearchResult } from '../common/index.js';
+import { createLogger } from '../common/index.js';
 
 const logger = createLogger('jlc-api');
 

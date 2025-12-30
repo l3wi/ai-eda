@@ -2,6 +2,8 @@
  * Project structure and configuration types
  */
 
+import type { ComponentSelection } from './component.js';
+
 export interface EDAProject {
   name: string;
   version: string;
@@ -47,22 +49,6 @@ export interface ProjectStatus {
   pcbComplete: boolean;
   validated: boolean;
   exported: boolean;
-}
-
-export interface ComponentSelection {
-  role: string;
-  selected?: {
-    lcscPartNumber: string;
-    manufacturerPart: string;
-    manufacturer: string;
-  };
-  alternatives?: {
-    lcscPartNumber: string;
-    manufacturerPart: string;
-    manufacturer: string;
-  }[];
-  requirements: string[];
-  status: 'pending' | 'selected' | 'placed' | 'routed';
 }
 
 export interface ProjectConfig {

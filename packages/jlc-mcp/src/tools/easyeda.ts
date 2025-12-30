@@ -10,8 +10,8 @@ import type {
   EasyEDACommunityPin,
   EasyEDACommunityPad,
   EasyEDAComponentData,
-} from 'ai-eda-common'
-import { ensureDir, writeText, writeBinary } from 'ai-eda-common'
+} from '../common/index.js'
+import { ensureDir, writeText, writeBinary } from '../common/index.js'
 import { easyedaCommunityClient } from '../api/easyeda-community.js'
 import { symbolConverter } from '../converter/symbol.js'
 import { footprintConverter } from '../converter/footprint.js'
@@ -737,7 +737,7 @@ function openInBrowser(filepath: string): boolean {
         return true
       case 'win32':
         // Windows - use start command with empty title
-        execSync(`start "" "${filepath}"`, { stdio: 'ignore', shell: true })
+        execSync(`start "" "${filepath}"`, { stdio: 'ignore', shell: 'cmd.exe' })
         return true
       case 'linux':
       default:
