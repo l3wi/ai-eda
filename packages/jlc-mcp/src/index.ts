@@ -20,6 +20,7 @@ import {
 
 import { tools, toolHandlers } from './tools/index.js';
 import { createLogger } from './common/index.js';
+import { ensureGlobalLibraryTables } from './converter/index.js';
 
 const logger = createLogger('jlc-mcp');
 
@@ -73,6 +74,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 // Run the server
 async function main() {
+  // Register JLC libraries in KiCad global tables
+  const registration = await ensureGlobalLibraryTables();
+
+  if (!registration.success) {
+    logger.error('Failed to register JLC libraries in KiCad global tables', {
+      errors: registration.errors,
+    });
+    process.exit(1);
+  }
+
+  // Log registration summary
+  const { symLibTable, fpLibTable, libraryStubs, version } = registration;
+  if (symLibTable.created || symLibTable.modified || fpLibTable.created || fpLibTable.modified) {
+    logger.info(`JLC libraries registered in KiCad ${version}`, {
+      symLibTable: symLibTable.created
+        ? `created with ${symLibTable.entriesAdded} entries`
+        : symLibTable.modified
+          ? `added ${symLibTable.entriesAdded} entries`
+          : 'already configured',
+      fpLibTable: fpLibTable.created
+        ? 'created'
+        : fpLibTable.modified
+          ? 'updated'
+          : 'already configured',
+      stubsCreated: libraryStubs.symbolsCreated.length + libraryStubs.directoriesCreated.length,
+    });
+  }
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logger.info('JLC MCP server running on stdio');

@@ -40,3 +40,7 @@ export {
   hasFixedTemplate,
   type SymbolTemplate,
 } from './symbol-templates.js';
+export {
+  ensureGlobalLibraryTables,
+  type GlobalRegistrationResult,
+} from './global-lib-table.js';
