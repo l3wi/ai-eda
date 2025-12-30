@@ -71,12 +71,12 @@ claude
 ```
 
 Then use the EDA workflow commands:
-- `/eda-new` - Define project requirements
-- `/eda-source [role]` - Source components
-- `/eda-schematic` - Create schematic
-- `/eda-layout` - Layout PCB
-- `/eda-check` - Validate design
-- `/eda-export` - Export manufacturing files
+- `/eda/new` - Define project requirements
+- `/eda/source [role]` - Source components
+- `/eda/schematic` - Create schematic
+- `/eda/layout` - Layout PCB
+- `/eda/check` - Validate design
+- `/eda/export` - Export manufacturing files
 
 ## Command Details
 
@@ -166,7 +166,7 @@ After running `claude-eda init`:
 ```
 my-project/
 ├── .claude/
-│   ├── commands/           # Slash commands (/eda-source, etc.)
+│   ├── commands/           # Slash commands (/eda/source, etc.)
 │   ├── agents/             # Claude agents for EDA workflow
 │   └── skills/             # Skills for component sourcing
 ├── docs/

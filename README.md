@@ -75,12 +75,12 @@ claude
 ```
 
 Use the EDA workflow commands:
-- `/eda-new` - Define project requirements
-- `/eda-source [role]` - Source components from LCSC
-- `/eda-schematic` - Create schematic
-- `/eda-layout` - Layout PCB
-- `/eda-check` - Validate design
-- `/eda-export` - Export manufacturing files
+- `/eda/new` - Define project requirements
+- `/eda/source [role]` - Source components from LCSC
+- `/eda/schematic` - Create schematic
+- `/eda/layout` - Layout PCB
+- `/eda/check` - Validate design
+- `/eda/export` - Export manufacturing files
 
 ## Requirements
 
