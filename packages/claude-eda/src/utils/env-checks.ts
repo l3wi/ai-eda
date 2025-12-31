@@ -8,6 +8,7 @@ import { join } from 'path';
 import { homedir, platform } from 'os';
 import { isKicadMcpInstalled } from '../commands/kicad-mcp.js';
 import { isKicadSchMcpInstalled } from '../commands/kicad-sch-mcp.js';
+import { isKicadPythonInstalled, getKicadBundledPythonPaths } from '../commands/kicad-python.js';
 
 export interface CheckResult {
   name: string;
@@ -216,6 +217,38 @@ export function checkKicadSchMcp(): CheckResult {
 }
 
 /**
+ * Check kicad-python installation in KiCad's bundled Python
+ * Required for IPC backend communication with running KiCad instances
+ */
+export async function checkKicadPython(): Promise<CheckResult> {
+  const pythonPaths = getKicadBundledPythonPaths();
+
+  if (!pythonPaths) {
+    return {
+      name: 'KiCad Python',
+      status: 'warn',
+      message: 'KiCad Python not found (optional for IPC)',
+    };
+  }
+
+  const { installed } = await isKicadPythonInstalled();
+
+  if (installed) {
+    return {
+      name: 'KiCad Python',
+      status: 'pass',
+      message: 'Installed (IPC backend enabled)',
+    };
+  }
+
+  return {
+    name: 'KiCad Python',
+    status: 'warn',
+    message: 'Not installed (optional). Run: claude-eda kicad-python --install',
+  };
+}
+
+/**
  * Check Node.js version
  */
 export async function checkNode(): Promise<CheckResult> {
@@ -256,6 +289,7 @@ export async function runAllChecks(): Promise<CheckResult[]> {
   results.push(checkKicadIpc());
   results.push(await checkKicadMcp());
   results.push(checkKicadSchMcp());
+  results.push(await checkKicadPython());
   results.push(await checkNode());
 
   // Add icons

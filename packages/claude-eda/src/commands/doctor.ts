@@ -15,10 +15,15 @@ import {
   installKicadSchMcp,
 } from './kicad-sch-mcp.js';
 import {
+  isKicadPythonInstalled,
+  installKicadPython,
+} from './kicad-python.js';
+import {
   checkKiCad,
   checkKicadIpc,
   checkKicadMcp,
   checkKicadSchMcp,
+  checkKicadPython,
   checkNode,
   CheckResult,
   getKicadConfigDir,
@@ -42,6 +47,7 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
   results.push(checkKicadIpc());
   results.push(await checkKicadMcp());
   results.push(checkKicadSchMcp());
+  results.push(await checkKicadPython());
   results.push(await checkNode());
   results.push(checkProjectStructure());
 
@@ -83,9 +89,10 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
   if (options.fix) {
     const { built: pcbBuilt } = isKicadMcpInstalled();
     const { installed: schInstalled } = isKicadSchMcpInstalled();
+    const { installed: pythonInstalled } = await isKicadPythonInstalled();
     let fixedSomething = false;
 
-    if (!pcbBuilt || !schInstalled) {
+    if (!pcbBuilt || !schInstalled || !pythonInstalled) {
       console.log(chalk.bold('Attempting to fix issues...\n'));
 
       // Install PCB MCP if needed
@@ -97,6 +104,12 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
       // Install Schematic MCP if needed
       if (!schInstalled) {
         const success = await installKicadSchMcp({ verbose: options.verbose });
+        if (success) fixedSomething = true;
+      }
+
+      // Install kicad-python if needed (enables IPC backend)
+      if (!pythonInstalled) {
+        const success = await installKicadPython({ verbose: options.verbose });
         if (success) fixedSomething = true;
       }
 
@@ -114,7 +127,8 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
   } else if (warnings.length > 0 || failures.length > 0) {
     const { built: pcbBuilt } = isKicadMcpInstalled();
     const { installed: schInstalled } = isKicadSchMcpInstalled();
-    if (!pcbBuilt || !schInstalled) {
+    const { installed: pythonInstalled } = await isKicadPythonInstalled();
+    if (!pcbBuilt || !schInstalled || !pythonInstalled) {
       console.log(chalk.dim('Run with --fix to automatically install missing components:'));
       console.log(chalk.cyan('  claude-eda doctor --fix'));
       console.log('');

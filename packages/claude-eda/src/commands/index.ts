@@ -23,3 +23,9 @@ export {
   getKicadSchMcpPaths,
   getKicadSchMcpConfig,
 } from './kicad-sch-mcp.js';
+export {
+  kicadPythonCommand,
+  isKicadPythonInstalled,
+  installKicadPython,
+  getKicadBundledPythonPaths,
+} from './kicad-python.js';

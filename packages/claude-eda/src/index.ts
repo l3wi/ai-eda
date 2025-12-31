@@ -6,7 +6,7 @@
  */
 
 import { Command } from 'commander';
-import { initCommand, doctorCommand, updateCommand, configCommand, kicadIpcCommand, kicadMcpCommand, kicadSchMcpCommand } from './commands/index.js';
+import { initCommand, doctorCommand, updateCommand, configCommand, kicadIpcCommand, kicadMcpCommand, kicadSchMcpCommand, kicadPythonCommand } from './commands/index.js';
 
 const program = new Command();
 
@@ -114,6 +114,18 @@ program
     await kicadSchMcpCommand({
       install: options.install,
       update: options.update,
+      status: options.status,
+    });
+  });
+
+program
+  .command('kicad-python')
+  .description('Manage kicad-python library (enables IPC backend)')
+  .option('-i, --install', 'Install kicad-python to KiCad bundled Python')
+  .option('-s, --status', 'Show installation status')
+  .action(async (options) => {
+    await kicadPythonCommand({
+      install: options.install,
       status: options.status,
     });
   });
