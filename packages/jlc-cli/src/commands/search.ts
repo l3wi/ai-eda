@@ -4,12 +4,11 @@
  */
 
 import { createComponentService, type SearchOptions } from 'jlc-core';
-import { renderSearchApp } from '../components/SearchApp.js';
+import { renderApp } from '../app/App.js';
 
 const componentService = createComponentService();
 
 export async function searchCommand(query: string, options: SearchOptions): Promise<void> {
-  // Fetch results first (non-interactive)
   console.log(`Searching for "${query}"...`);
 
   try {
@@ -31,7 +30,7 @@ export async function searchCommand(query: string, options: SearchOptions): Prom
 
     // Clear the "Searching..." line and launch interactive UI
     process.stdout.write('\x1b[1A\x1b[2K');
-    renderSearchApp(results, query);
+    renderApp('search', { query, results });
   } catch (error) {
     console.error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     process.exit(1);
