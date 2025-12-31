@@ -9,11 +9,14 @@ import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import type { IncomingMessage, ServerResponse } from 'http'
-import { createLogger } from '../common/index.js'
-import type { EasyEDAComponentData, EasyEDACommunityComponent } from '../common/index.js'
-import { easyedaCommunityClient } from '../api/easyeda-community.js'
-import { symbolConverter } from '../converter/symbol.js'
-import { footprintConverter } from '../converter/footprint.js'
+import {
+  createLogger,
+  type EasyEDAComponentData,
+  type EasyEDACommunityComponent,
+  easyedaCommunityClient,
+  symbolConverter,
+  footprintConverter,
+} from 'jlc-core'
 
 const logger = createLogger('http-routes')
 

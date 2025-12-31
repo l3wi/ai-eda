@@ -5,7 +5,7 @@
 
 import { z } from 'zod'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { easyedaCommunityClient } from '../api/easyeda-community.js'
+import { easyedaCommunityClient } from 'jlc-core'
 import { join } from 'path'
 import { execSync } from 'child_process'
 import { tmpdir } from 'os'

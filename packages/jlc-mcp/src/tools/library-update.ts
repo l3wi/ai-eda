@@ -9,18 +9,19 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { existsSync, readdirSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { homedir, platform } from 'os';
-import { easyedaClient } from '../api/easyeda.js';
-import { symbolConverter } from '../converter/symbol.js';
-import { footprintConverter } from '../converter/footprint.js';
 import {
+  easyedaClient,
+  symbolConverter,
+  footprintConverter,
   getLibraryCategory,
   getLibraryFilename,
   getFootprintDirName,
   get3DModelsDirName,
   getAllCategories,
   type LibraryCategory,
-} from '../converter/category-router.js';
-import { ensureDir, writeText } from '../common/index.js';
+  ensureDir,
+  writeText,
+} from 'jlc-core';
 import { join } from 'path';
 
 // KiCad versions to check (newest first)

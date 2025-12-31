@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { easyedaClient } from '../api/easyeda.js';
+import { easyedaClient } from 'jlc-core';
 
 export const getComponentTool: Tool = {
   name: 'component_get',

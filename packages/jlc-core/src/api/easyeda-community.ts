@@ -9,13 +9,13 @@ import type {
   EasyEDACommunitySearchParams,
   EasyEDACommunitySearchResult,
   EasyEDACommunityComponent,
-} from '../common/index.js'
-import { createLogger } from '../common/index.js'
+} from '../types/index.js'
+import { createLogger } from '../utils/index.js'
 import {
   fetchWithCurlFallback,
   parseSymbolShapes,
   parseFootprintShapes,
-} from '../common/parsers/index.js'
+} from '../parsers/index.js'
 
 const logger = createLogger('easyeda-community-api')
 

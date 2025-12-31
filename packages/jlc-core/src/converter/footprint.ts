@@ -15,8 +15,9 @@ import type {
   EasyEDARect,
   EasyEDAVia,
   EasyEDAText,
-} from '../common/index.js';
-import { KICAD_FOOTPRINT_VERSION, KICAD_LAYERS, roundTo } from '../common/index.js';
+} from '../types/index.js';
+import { KICAD_FOOTPRINT_VERSION, KICAD_LAYERS } from '../constants/index.js';
+import { roundTo } from '../utils/index.js';
 import { mapToKicadFootprint, getKicadFootprintRef } from './footprint-mapper.js';
 
 // =============================================================================

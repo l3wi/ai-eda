@@ -4,13 +4,13 @@
  * Uses shared parsers from common/parsers for all shape types.
  */
 
-import type { EasyEDAComponentData } from '../common/index.js';
-import { createLogger } from '../common/index.js';
+import type { EasyEDAComponentData } from '../types/index.js';
+import { createLogger } from '../utils/index.js';
 import {
   fetchWithCurlFallback,
   parseSymbolShapes,
   parseFootprintShapes,
-} from '../common/parsers/index.js';
+} from '../parsers/index.js';
 
 const logger = createLogger('easyeda-api');
 

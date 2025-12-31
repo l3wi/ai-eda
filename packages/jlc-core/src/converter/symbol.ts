@@ -14,8 +14,9 @@ import type {
   EasyEDASymbolPolyline,
   EasyEDASymbolPolygon,
   EasyEDASymbolPath,
-} from '../common/index.js';
-import { KICAD_SYMBOL_VERSION, KICAD_DEFAULTS, roundTo } from '../common/index.js';
+} from '../types/index.js';
+import { KICAD_SYMBOL_VERSION, KICAD_DEFAULTS } from '../constants/index.js';
+import { roundTo } from '../utils/index.js';
 import { extractDisplayValue } from './value-normalizer.js';
 import { getSymbolTemplate, type SymbolTemplate } from './symbol-templates.js';
 import { getLibraryCategory, type LibraryCategory } from './category-router.js';

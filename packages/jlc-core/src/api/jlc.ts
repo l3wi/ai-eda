@@ -3,8 +3,8 @@
  * Uses JLCPCB's parts library API which provides LCSC component data
  */
 
-import type { LCSCSearchOptions, ComponentSearchResult } from '../common/index.js';
-import { createLogger } from '../common/index.js';
+import type { LCSCSearchOptions, ComponentSearchResult } from '../types/index.js';
+import { createLogger } from '../utils/index.js';
 
 const logger = createLogger('jlc-api');
 
@@ -78,6 +78,7 @@ export class JLCClient {
       currentPage: page,
       pageSize: Math.min(limit, 50),
       keyword: query,
+      searchType: 2, // Better search relevance matching
     };
 
     // Add in-stock filter
@@ -85,9 +86,10 @@ export class JLCClient {
       requestBody.presaleType = 'stock';
     }
 
-    // Add basic library filter (JLCPCB basic parts = lower assembly cost)
+    // Add basic/preferred library filter (JLCPCB basic parts = lower assembly cost)
     if (basicOnly) {
       requestBody.componentLibTypes = ['base'];
+      requestBody.preferredComponentFlag = true;
     }
 
     const body = JSON.stringify(requestBody);
