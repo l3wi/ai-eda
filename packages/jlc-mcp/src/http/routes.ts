@@ -1,6 +1,8 @@
 /**
  * HTTP routes for the EasyEDA Component Browser
  * Handles serving the HTML page and proxying API requests
+ *
+ * Returns KiCad S-expression strings for symbol/footprint preview rendering
  */
 
 import { readFileSync } from 'fs'
@@ -8,7 +10,10 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { createLogger } from '../common/index.js'
+import type { EasyEDAComponentData, EasyEDACommunityComponent } from '../common/index.js'
 import { easyedaCommunityClient } from '../api/easyeda-community.js'
+import { symbolConverter } from '../converter/symbol.js'
+import { footprintConverter } from '../converter/footprint.js'
 
 const logger = createLogger('http-routes')
 
@@ -155,8 +160,37 @@ async function handleSearch(
 }
 
 /**
+ * Convert EasyEDACommunityComponent to EasyEDAComponentData format
+ * Required because converters expect the LCSC-style structure
+ */
+function communityToComponentData(
+  community: EasyEDACommunityComponent
+): EasyEDAComponentData {
+  // Extract component info from the head c_para
+  const cPara = community.symbol.head?.c_para as Record<string, string> | undefined ?? {}
+  const fpCPara = community.footprint.head?.c_para as Record<string, string> | undefined ?? {}
+
+  return {
+    info: {
+      name: community.title || cPara.name || 'Unknown',
+      prefix: cPara.pre || cPara.Prefix || 'U',
+      package: fpCPara.package || community.footprint.name,
+      manufacturer: cPara.Manufacturer || cPara.BOM_Manufacturer,
+      description: community.description || cPara.BOM_Manufacturer_Part,
+      category: cPara.package, // Best guess for category
+    },
+    symbol: community.symbol,
+    footprint: community.footprint,
+    model3d: community.model3d,
+    rawData: community.rawData,
+  }
+}
+
+/**
  * Handle component fetch API requests
  * GET /api/component/:uuid
+ *
+ * Returns KiCad S-expression strings for browser-side rendering
  */
 async function handleComponent(
   uuid: string,
@@ -177,15 +211,35 @@ async function handleComponent(
       return
     }
 
-    // Return the raw component data for client-side rendering
+    // Convert community component to converter-compatible format
+    const componentData = communityToComponentData(component)
+
+    // Generate KiCad S-expression strings using existing converters
+    let symbolSexpr = ''
+    let footprintSexpr = ''
+
+    try {
+      // Get just the symbol entry (not the full library wrapper)
+      symbolSexpr = symbolConverter.convertToSymbolEntry(componentData)
+    } catch (e) {
+      logger.warn('Symbol conversion failed:', e)
+    }
+
+    try {
+      footprintSexpr = footprintConverter.convert(componentData)
+    } catch (e) {
+      logger.warn('Footprint conversion failed:', e)
+    }
+
+    // Return S-expr strings for browser rendering
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({
       uuid: component.uuid,
       title: component.title,
       description: component.description,
       owner: component.owner,
-      symbol: component.symbol,
-      footprint: component.footprint,
+      symbolSexpr,
+      footprintSexpr,
       model3d: component.model3d,
     }))
   } catch (error) {

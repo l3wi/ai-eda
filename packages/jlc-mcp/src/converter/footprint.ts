@@ -396,11 +396,11 @@ export class FootprintConverter {
 
   /**
    * Generate custom POLYGON pad using gr_poly primitive
+   * Supports both SMD and through-hole polygon pads
    */
   private generatePolygonPad(pad: EasyEDAPad, origin: Point, layers: string): string {
     const x = convertX(pad.centerX, origin.x);
     const y = convertY(pad.centerY, origin.y);
-    const rotation = pad.rotation || 0;
 
     // Parse polygon points
     const points = parsePoints(pad.points);
@@ -409,16 +409,33 @@ export class FootprintConverter {
       return this.generatePad({ ...pad, shape: 'RECT', points: '' }, origin);
     }
 
+    // Determine if SMD or THT based on hole radius (same logic as generatePad)
+    const isSmd = pad.holeRadius === 0;
+    const padType = isSmd ? 'smd' : 'thru_hole';
+
     // Convert points relative to pad center (no Y-flip - KiCad footprints use same Y convention)
     const polyPoints = points.map((p) => ({
       x: roundTo(toMM(p.x - pad.centerX), 2),
       y: roundTo(toMM(p.y - pad.centerY), 2),
     }));
 
-    // Custom/polygon pads must have rotation=0 - the polygon points already define orientation
-    let output = `\t(pad "${pad.number}" smd custom\n`;
+    // Custom/polygon pads - rotation handled by polygon points
+    let output = `\t(pad "${pad.number}" ${padType} custom\n`;
     output += `\t\t(at ${x} ${y})\n`;
     output += `\t\t(size 0.01 0.01)\n`;
+
+    // Add drill for through-hole pads
+    if (!isSmd) {
+      const drillDiameter = roundTo(toMM(pad.holeRadius * 2), 4);
+      if (pad.holeLength && pad.holeLength > 0) {
+        // Slot/oval hole
+        const holeH = roundTo(toMM(pad.holeLength), 4);
+        output += `\t\t(drill oval ${drillDiameter} ${holeH})\n`;
+      } else {
+        output += `\t\t(drill ${drillDiameter})\n`;
+      }
+    }
+
     output += `\t\t(layers ${layers})\n`;
     output += `\t\t(primitives\n`;
     output += `\t\t\t(gr_poly\n`;
@@ -599,6 +616,17 @@ export class FootprintConverter {
     const fontSize = roundTo(toMM(text.fontSize), 2);
     const rotation = text.rotation || 0;
 
+    // Determine text justification based on position relative to origin
+    // EasyEDA text coordinates are anchor points, not center points
+    // Left side text should extend right (justify left)
+    // Right side text should extend left (justify right)
+    let justify = '';
+    if (x < -0.5) {
+      justify = 'left'; // Text on left side, anchor at left edge
+    } else if (x > 0.5) {
+      justify = 'right'; // Text on right side, anchor at right edge
+    }
+
     return `\t(fp_text user "${this.escapeString(text.text)}"
 \t\t(at ${x} ${y}${rotation !== 0 ? ` ${rotation}` : ''})
 \t\t(layer "${layer}")
@@ -607,7 +635,7 @@ export class FootprintConverter {
 \t\t\t\t(size ${fontSize} ${fontSize})
 \t\t\t\t(thickness ${roundTo(fontSize * 0.15, 2)})
 \t\t\t)
-\t\t)
+${justify ? `\t\t\t(justify ${justify})\n` : ''}\t\t)
 \t)\n`;
   }
 

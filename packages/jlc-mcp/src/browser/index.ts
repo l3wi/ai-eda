@@ -1,9 +1,11 @@
 /**
  * Browser app for EasyEDA Component Browser
  * Handles search, rendering, and user interactions
+ *
+ * Uses KiCad S-expression renderer for symbol/footprint previews
  */
 
-import { generateFootprintSvg, generateSymbolSvg, generateFootprintSvgFromStructured } from './preview-renderer.js'
+import { renderSymbolSvg, renderFootprintSvg } from './kicad-renderer.js'
 
 // Types
 interface SearchResult {
@@ -38,113 +40,19 @@ interface SearchResponse {
   pagination: Pagination
 }
 
-interface FootprintHead {
-  shape?: string[]
-  BBox?: { x: number; y: number; width: number; height: number }
-}
-
-interface StructuredPad {
-  centerX: number
-  centerY: number
-  width: number
-  height: number
-  shape: string
-  holeRadius?: number
-  points?: string
-  rotation?: number
-  layerId?: number
-}
-
-interface StructuredTrack {
-  points: string
-  strokeWidth: number
-  layerId?: number
-}
-
-interface StructuredCircle {
-  cx: number
-  cy: number
-  radius: number
-  strokeWidth?: number
-  layerId?: number
-}
-
-// Symbol shape types matching EasyEDA API response
-interface SymbolPin {
-  x: number
-  y: number
-  name?: string
-  number?: string
-  rotation?: number
-  pinLength?: number
-}
-
-interface SymbolRect {
-  x: number
-  y: number
-  width: number
-  height: number
-  strokeWidth?: number
-  rx?: number
-  ry?: number
-}
-
-interface SymbolCircle {
-  cx: number
-  cy: number
-  radius: number
-  strokeWidth?: number
-}
-
-interface SymbolEllipse {
-  cx: number
-  cy: number
-  radiusX: number
-  radiusY: number
-  strokeWidth?: number
-}
-
-interface SymbolPolyline {
-  points: string
-  strokeWidth?: number
-}
-
-interface SymbolPolygon {
-  points: string
-  strokeWidth?: number
-}
-
-interface SymbolArc {
-  path: string
-  strokeWidth?: number
-}
-
-interface SymbolPath {
-  path: string
-  strokeWidth?: number
-}
-
+/**
+ * Component data returned by the API
+ * Contains KiCad S-expression strings for rendering
+ */
 interface ComponentData {
   uuid: string
   title: string
-  symbol: {
-    pins?: SymbolPin[]
-    rectangles?: SymbolRect[]
-    circles?: SymbolCircle[]
-    ellipses?: SymbolEllipse[]
-    polylines?: SymbolPolyline[]
-    polygons?: SymbolPolygon[]
-    arcs?: SymbolArc[]
-    paths?: SymbolPath[]
-    origin?: { x: number; y: number }
-  }
-  footprint: {
+  description: string
+  symbolSexpr: string      // KiCad symbol S-expression
+  footprintSexpr: string   // KiCad footprint S-expression
+  model3d?: {
     name: string
-    pads?: StructuredPad[]
-    tracks?: StructuredTrack[]
-    circles?: StructuredCircle[]
-    origin?: { x: number; y: number }
-    head?: FootprintHead
+    uuid: string
   }
 }
 
@@ -255,7 +163,7 @@ function renderResults(results: SearchResult[]) {
     <div class="card" data-uuid="${result.uuid}">
       <div class="card-images">
         <div class="image-container symbol-container" data-uuid="${result.uuid}">
-          <img src="${result.thumb}" alt="Symbol" onerror="this.style.display='none'" />
+          <div class="symbol-placeholder">Loading...</div>
           <div class="image-label">Symbol</div>
         </div>
         <div class="image-container footprint-container" data-uuid="${result.uuid}">
@@ -294,48 +202,56 @@ function renderResults(results: SearchResult[]) {
     })
   })
 
-  // Load footprint previews
-  results.forEach(result => loadFootprintPreview(result.uuid))
+  // Load symbol and footprint previews for each card
+  results.forEach(result => loadComponentPreviews(result.uuid))
 }
 
-// Load and render footprint preview for a card
-async function loadFootprintPreview(uuid: string) {
-  const container = document.querySelector(`.footprint-container[data-uuid="${uuid}"]`)
-  if (!container) return
+// Load and render both symbol and footprint previews for a card
+async function loadComponentPreviews(uuid: string) {
+  const symbolContainer = document.querySelector(`.symbol-container[data-uuid="${uuid}"]`)
+  const footprintContainer = document.querySelector(`.footprint-container[data-uuid="${uuid}"]`)
+  if (!symbolContainer && !footprintContainer) return
 
   try {
     const response = await fetch(`/api/component/${uuid}`)
-    if (!response.ok) return
+    if (!response.ok) {
+      if (symbolContainer) {
+        symbolContainer.innerHTML = '<div class="no-preview">Error</div><div class="image-label">Symbol</div>'
+      }
+      if (footprintContainer) {
+        footprintContainer.innerHTML = '<div class="no-preview">Error</div><div class="image-label">Footprint</div>'
+      }
+      return
+    }
 
-    const data = await response.json()
-    const footprint = data.footprint
+    const data: ComponentData = await response.json()
 
-    // Try raw shape data first, then structured data
-    if (footprint?.head?.shape) {
-      const svg = generateFootprintSvg({ shape: footprint.head.shape, BBox: footprint.head.BBox })
-      if (svg) {
-        container.innerHTML = svg + '<div class="image-label">Footprint</div>'
-        return
+    // Render symbol from KiCad S-expression
+    if (symbolContainer) {
+      if (data.symbolSexpr) {
+        const svg = renderSymbolSvg(data.symbolSexpr)
+        symbolContainer.innerHTML = svg + '<div class="image-label">Symbol</div>'
+      } else {
+        symbolContainer.innerHTML = '<div class="no-preview">No preview</div><div class="image-label">Symbol</div>'
       }
     }
 
-    // Use structured pad/track data
-    if (footprint?.pads || footprint?.tracks) {
-      const svg = generateFootprintSvgFromStructured({
-        pads: footprint.pads,
-        tracks: footprint.tracks,
-        circles: footprint.circles,
-        origin: footprint.origin,
-      })
-      if (svg) {
-        container.innerHTML = svg + '<div class="image-label">Footprint</div>'
-        return
+    // Render footprint from KiCad S-expression
+    if (footprintContainer) {
+      if (data.footprintSexpr) {
+        const svg = renderFootprintSvg(data.footprintSexpr)
+        footprintContainer.innerHTML = svg + '<div class="image-label">Footprint</div>'
+      } else {
+        footprintContainer.innerHTML = '<div class="no-preview">No preview</div><div class="image-label">Footprint</div>'
       }
     }
-
-    container.innerHTML = '<div class="no-preview">No preview</div><div class="image-label">Footprint</div>'
   } catch {
-    container.innerHTML = '<div class="no-preview">Error</div><div class="image-label">Footprint</div>'
+    if (symbolContainer) {
+      symbolContainer.innerHTML = '<div class="no-preview">Error</div><div class="image-label">Symbol</div>'
+    }
+    if (footprintContainer) {
+      footprintContainer.innerHTML = '<div class="no-preview">Error</div><div class="image-label">Footprint</div>'
+    }
   }
 }
 
@@ -351,26 +267,9 @@ async function showPreviewModal(uuid: string) {
 
     const data: ComponentData = await response.json()
 
-    // Generate larger SVG previews
-    let footprintSvg = ''
-    const footprint = data.footprint
-
-    // Try raw shape data first
-    if (footprint?.head?.shape) {
-      footprintSvg = generateFootprintSvg({ shape: footprint.head.shape, BBox: footprint.head.BBox })
-    }
-
-    // Fall back to structured data
-    if (!footprintSvg && (footprint?.pads || footprint?.tracks)) {
-      footprintSvg = generateFootprintSvgFromStructured({
-        pads: footprint.pads,
-        tracks: footprint.tracks,
-        circles: footprint.circles,
-        origin: footprint.origin,
-      })
-    }
-
-    const symbolSvg = generateSymbolSvg(data.symbol)
+    // Generate SVG previews from KiCad S-expressions
+    const symbolSvg = data.symbolSexpr ? renderSymbolSvg(data.symbolSexpr) : ''
+    const footprintSvg = data.footprintSexpr ? renderFootprintSvg(data.footprintSexpr) : ''
 
     modalContent.innerHTML = `
       <div class="modal-header">
@@ -382,17 +281,17 @@ async function showPreviewModal(uuid: string) {
       </div>
       <div class="modal-previews">
         <div class="modal-preview">
-          <h3>Symbol</h3>
+          <h3>Symbol (KiCad)</h3>
           <div class="preview-svg">${symbolSvg || '<div class="no-preview">No symbol preview</div>'}</div>
         </div>
         <div class="modal-preview">
-          <h3>Footprint: ${escapeHtml(data.footprint?.name || 'Unknown')}</h3>
+          <h3>Footprint (KiCad)</h3>
           <div class="preview-svg">${footprintSvg || '<div class="no-preview">No footprint preview</div>'}</div>
         </div>
       </div>
       <div class="modal-info">
-        <p><strong>Pins:</strong> ${data.symbol?.pins?.length || 0}</p>
-        <p><strong>Pads:</strong> ${data.footprint?.pads?.length || 0}</p>
+        <p><strong>Description:</strong> ${escapeHtml(data.description || 'N/A')}</p>
+        ${data.model3d ? '<p><strong>3D Model:</strong> Available</p>' : ''}
       </div>
     `
 

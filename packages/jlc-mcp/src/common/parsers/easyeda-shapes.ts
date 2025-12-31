@@ -408,7 +408,8 @@ export function parseText(data: string): EasyEDAText | null {
       fontSize: safeParseFloat(f[9]),
       text: f[10] || '',
       textPath: f[11] || '',
-      isDisplayed: parseBool(f[12]),
+      // Default to true if not specified - EasyEDA texts are displayed by default
+      isDisplayed: f[12] === undefined || f[12] === '' ? true : parseBool(f[12]),
       id: f[13] || '',
       isLocked: parseBool(f[14]),
     };

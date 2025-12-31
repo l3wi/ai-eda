@@ -29,12 +29,8 @@ import {
 // Import EasyEDA community tools
 import {
   easyedaSearchTool,
-  easyedaGetTool,
-  easyedaFetchTool,
   easyedaGet3DModelTool,
   handleEasyedaSearch,
-  handleEasyedaGet,
-  handleEasyedaFetch,
   handleEasyedaGet3DModel,
 } from './easyeda.js';
 
@@ -51,8 +47,6 @@ export const tools: Tool[] = [
   get3DModelTool,
   // EasyEDA community library
   easyedaSearchTool,
-  easyedaGetTool,
-  easyedaFetchTool,
   easyedaGet3DModelTool,
 ];
 
@@ -72,8 +66,6 @@ export const toolHandlers: Record<string, (args: unknown) => Promise<{
   library_get_3d_model: handleGet3DModel,
   // EasyEDA community library
   easyeda_search: handleEasyedaSearch,
-  easyeda_get: handleEasyedaGet,
-  easyeda_fetch: handleEasyedaFetch,
   easyeda_get_3d_model: handleEasyedaGet3DModel,
 };
 
@@ -100,11 +92,7 @@ export {
 } from './library-fix.js';
 export {
   easyedaSearchTool,
-  easyedaGetTool,
-  easyedaFetchTool,
   easyedaGet3DModelTool,
   handleEasyedaSearch,
-  handleEasyedaGet,
-  handleEasyedaFetch,
   handleEasyedaGet3DModel,
 } from './easyeda.js';

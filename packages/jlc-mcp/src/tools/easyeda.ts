@@ -1,31 +1,14 @@
 /**
  * EasyEDA Community Library MCP Tools
- * Search, fetch, and convert user-contributed components
+ * Search and 3D model download for community-contributed components
  */
 
 import { z } from 'zod'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import type {
-  EasyEDACommunityComponent,
-  EasyEDAComponentData,
-  EasyEDAPin,
-  EasyEDAPad,
-} from '../common/index.js'
-import { ensureDir, writeText, writeBinary } from '../common/index.js'
 import { easyedaCommunityClient } from '../api/easyeda-community.js'
-import { symbolConverter } from '../converter/symbol.js'
-import { footprintConverter } from '../converter/footprint.js'
-import {
-  ensureSymLibTable,
-  ensureFpLibTable,
-  getSymbolReference,
-  getFootprintReference,
-} from '../converter/lib-table.js'
 import { join } from 'path'
 import { execSync } from 'child_process'
 import { tmpdir } from 'os'
-import { existsSync } from 'fs'
-import { readFile } from 'fs/promises'
 
 // Tool Definitions
 
@@ -60,52 +43,6 @@ export const easyedaSearchTool: Tool = {
   },
 }
 
-export const easyedaGetTool: Tool = {
-  name: 'easyeda_get',
-  description:
-    'Get detailed component information from EasyEDA community library including symbol pins and footprint pads.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      uuid: {
-        type: 'string',
-        description: 'Component UUID from easyeda_search results',
-      },
-    },
-    required: ['uuid'],
-  },
-}
-
-export const easyedaFetchTool: Tool = {
-  name: 'easyeda_fetch',
-  description: `Fetch an EasyEDA community component and add it to the project's EasyEDA library.
-Creates EasyEDA.kicad_sym (symbols) and EasyEDA.pretty/ (footprints) in the libraries folder.
-Automatically updates sym-lib-table and fp-lib-table.
-Returns symbol_ref and footprint_ref for immediate use with add_schematic_component.`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      uuid: {
-        type: 'string',
-        description: 'Component UUID from easyeda_search results',
-      },
-      project_path: {
-        type: 'string',
-        description: 'Path to the KiCad project directory (contains .kicad_pro file). Libraries will be created in <project_path>/libraries/',
-      },
-      include_3d: {
-        type: 'boolean',
-        description: 'Download 3D model if available (default: true)',
-      },
-      name_override: {
-        type: 'string',
-        description: 'Optional custom name for the component files',
-      },
-    },
-    required: ['uuid', 'project_path'],
-  },
-}
-
 export const easyedaGet3DModelTool: Tool = {
   name: 'easyeda_get_3d_model',
   description:
@@ -134,17 +71,6 @@ const EasyedaSearchParamsSchema = z.object({
   source: z.enum(['user', 'lcsc', 'easyeda', 'all']).optional(),
   limit: z.number().min(1).max(100).optional(),
   open_preview: z.boolean().optional(),
-})
-
-const EasyedaGetParamsSchema = z.object({
-  uuid: z.string().min(1),
-})
-
-const EasyedaFetchParamsSchema = z.object({
-  uuid: z.string().min(1),
-  project_path: z.string().min(1),
-  include_3d: z.boolean().optional(),
-  name_override: z.string().optional(),
 })
 
 const EasyedaGet3DModelParamsSchema = z.object({
@@ -185,8 +111,8 @@ export async function handleEasyedaSearch(args: unknown) {
     output += `| ${i + 1} | ${r.title} | ${r.package} | ${r.owner.nickname || r.owner.username} | ${r.uuid} |\n`
   }
 
-  output += '\nUse `easyeda_get` with the UUID to see component details.\n'
-  output += 'Use `easyeda_fetch` with the UUID to download KiCAD files.'
+  output += '\nUse `library_fetch` with the UUID to add component to global JLC-MCP libraries.'
+  output += '\nUse `easyeda_fetch` with the UUID to add to project-local EasyEDA library.'
 
   // Generate HTML preview
   if (openPreview) {
@@ -204,227 +130,6 @@ export async function handleEasyedaSearch(args: unknown) {
       {
         type: 'text' as const,
         text: output,
-      },
-    ],
-  }
-}
-
-export async function handleEasyedaGet(args: unknown) {
-  const params = EasyedaGetParamsSchema.parse(args)
-
-  const component = await easyedaCommunityClient.getComponent(params.uuid)
-
-  if (!component) {
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Component ${params.uuid} not found`,
-        },
-      ],
-      isError: true,
-    }
-  }
-
-  let output = `Component: ${component.title}\n`
-  output += `UUID: ${component.uuid}\n`
-  output += `Owner: ${component.owner.nickname || component.owner.username}\n`
-  output += `Description: ${component.description || 'N/A'}\n`
-  output += `Tags: ${component.tags.join(', ') || 'None'}\n`
-  output += `Verified: ${component.verify ? 'Yes' : 'No'}\n`
-  output += '\n'
-
-  // Symbol info
-  output += `Symbol (${component.symbol.pins.length} pins):\n`
-  for (const pin of component.symbol.pins) {
-    output += `  Pin ${pin.number}: ${pin.name}\n`
-  }
-  output += '\n'
-
-  // Footprint info
-  output += `Footprint: ${component.footprint.name}\n`
-  output += `  ${component.footprint.pads.length} pads\n`
-  output += '\n'
-
-  // 3D model info
-  if (component.model3d) {
-    output += `3D Model: ${component.model3d.name}\n`
-    output += `  UUID: ${component.model3d.uuid}\n`
-  } else {
-    output += '3D Model: Not available\n'
-  }
-
-  output += '\nUse `easyeda_fetch` to download KiCAD files.'
-
-  // Generate footprint SVG preview if raw data available
-  // For docType 2 (symbol+footprint): footprint is in packageDetail.dataStr
-  // For docType 4 (footprint only): footprint is in top-level dataStr
-  const rawData = component.rawData as any
-  const fpDataStr = rawData?.packageDetail?.dataStr || rawData?.dataStr
-  let footprintSvgPath: string | undefined
-
-  if (fpDataStr?.shape) {
-    const svg = generateFootprintSvg(fpDataStr)
-    if (svg) {
-      // Save SVG to temp file
-      const svgFilename = `easyeda-footprint-${params.uuid.slice(0, 8)}.svg`
-      footprintSvgPath = join(tmpdir(), svgFilename)
-      require('fs').writeFileSync(footprintSvgPath, svg, 'utf-8')
-      output += `\n\nFootprint preview saved: ${footprintSvgPath}`
-      openInBrowser(footprintSvgPath)
-    }
-  }
-
-  return {
-    content: [
-      {
-        type: 'text' as const,
-        text: output,
-      },
-    ],
-  }
-}
-
-const EASYEDA_SYMBOL_LIBRARY_NAME = 'EasyEDA.kicad_sym'
-const EASYEDA_FOOTPRINT_LIBRARY_NAME = 'EasyEDA.pretty'
-const EASYEDA_LIBRARY_NAME = 'EasyEDA'
-const EASYEDA_LIBRARY_DESCRIPTION = 'EasyEDA Community Component Library'
-
-export async function handleEasyedaFetch(args: unknown) {
-  const params = EasyedaFetchParamsSchema.parse(args)
-  const projectPath = params.project_path
-
-  const component = await easyedaCommunityClient.getComponent(params.uuid)
-
-  if (!component) {
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Component ${params.uuid} not found`,
-        },
-      ],
-      isError: true,
-    }
-  }
-
-  // Convert community component to EasyEDAComponentData format
-  const componentData = adaptCommunityComponent(component)
-
-  // Setup library paths (same structure as library_fetch)
-  const librariesDir = join(projectPath, 'libraries')
-  const symbolsDir = join(librariesDir, 'symbols')
-  const footprintsDir = join(librariesDir, 'footprints', EASYEDA_FOOTPRINT_LIBRARY_NAME)
-  const modelsDir = join(librariesDir, '3dmodels', 'EasyEDA.3dshapes')
-
-  await ensureDir(symbolsDir)
-  await ensureDir(footprintsDir)
-
-  // Handle unified symbol library
-  const symbolLibPath = join(symbolsDir, EASYEDA_SYMBOL_LIBRARY_NAME)
-  const symbolName = params.name_override || component.title.replace(/[^a-zA-Z0-9_-]/g, '_')
-
-  let symbolContent: string
-  let symbolAction: 'created' | 'appended' | 'exists'
-
-  if (existsSync(symbolLibPath)) {
-    // Read existing library
-    const existingContent = await readFile(symbolLibPath, 'utf-8')
-
-    // Check if symbol already exists
-    if (symbolConverter.symbolExistsInLibrary(existingContent, symbolName)) {
-      symbolAction = 'exists'
-      symbolContent = existingContent
-    } else {
-      // Append new symbol
-      symbolContent = symbolConverter.appendToLibrary(existingContent, componentData, {
-        libraryName: EASYEDA_LIBRARY_NAME,
-        symbolName,
-      })
-      symbolAction = 'appended'
-    }
-  } else {
-    // Create new library with this symbol
-    symbolContent = symbolConverter.convert(componentData, {
-      libraryName: EASYEDA_LIBRARY_NAME,
-      symbolName,
-    })
-    symbolAction = 'created'
-  }
-
-  // Write symbol library if changed
-  if (symbolAction !== 'exists') {
-    await writeText(symbolLibPath, symbolContent)
-  }
-
-  // Generate and save footprint (individual files in .pretty directory)
-  const footprint = footprintConverter.convert(componentData, {
-    libraryName: EASYEDA_LIBRARY_NAME,
-  })
-  const footprintName = symbolName
-  const footprintPath = join(footprintsDir, `${footprintName}.kicad_mod`)
-  await writeText(footprintPath, footprint)
-
-  // Download 3D model if requested and available
-  let modelPath: string | undefined
-  const include3d = params.include_3d ?? true
-
-  if (include3d && component.model3d) {
-    await ensureDir(modelsDir)
-    const model = await easyedaCommunityClient.get3DModel(
-      component.model3d.uuid,
-      'step'
-    )
-    if (model) {
-      modelPath = join(modelsDir, `${symbolName}.step`)
-      await writeBinary(modelPath, model)
-    }
-  }
-
-  // Update sym-lib-table and fp-lib-table
-  const symTableResult = await ensureSymLibTable(
-    projectPath,
-    symbolLibPath,
-    EASYEDA_LIBRARY_NAME,
-    EASYEDA_LIBRARY_DESCRIPTION
-  )
-  const fpTableResult = await ensureFpLibTable(
-    projectPath,
-    join(librariesDir, 'footprints', EASYEDA_FOOTPRINT_LIBRARY_NAME),
-    EASYEDA_LIBRARY_NAME,
-    EASYEDA_LIBRARY_DESCRIPTION
-  )
-
-  // Generate references for immediate use
-  const symbolRef = getSymbolReference(symbolName, EASYEDA_LIBRARY_NAME)
-  const footprintRef = getFootprintReference(footprintName, EASYEDA_LIBRARY_NAME)
-
-  return {
-    content: [
-      {
-        type: 'text' as const,
-        text: JSON.stringify(
-          {
-            success: true,
-            uuid: params.uuid,
-            component: component.title,
-            symbol_name: symbolName,
-            symbol_ref: symbolRef,
-            footprint_ref: footprintRef,
-            files: {
-              symbol_library: symbolLibPath,
-              footprint: footprintPath,
-              model_3d: modelPath,
-            },
-            library_tables: {
-              sym_lib_table: symTableResult,
-              fp_lib_table: fpTableResult,
-            },
-            symbol_action: symbolAction,
-          },
-          null,
-          2
-        ),
       },
     ],
   }
@@ -461,73 +166,6 @@ export async function handleEasyedaGet3DModel(args: unknown) {
 }
 
 // Helper Functions
-
-/**
- * Adapt EasyEDACommunityComponent to EasyEDAComponentData for converters
- */
-function adaptCommunityComponent(
-  component: EasyEDACommunityComponent
-): EasyEDAComponentData {
-  // Get component parameters from head
-  const symbolHead = component.symbol.head as Record<string, any>
-  const fpHead = component.footprint.head as Record<string, any>
-  const cPara = symbolHead?.c_para || {}
-
-  return {
-    info: {
-      name: component.title,
-      prefix: cPara.pre || 'U',
-      package: component.footprint.name,
-      manufacturer: cPara.Manufacturer || cPara.BOM_Manufacturer,
-      datasheet: cPara.link,
-      lcscId: undefined, // Community components don't have LCSC IDs
-      jlcId: undefined,
-    },
-    symbol: {
-      // Community components now use the same parsed structure as LCSC
-      pins: component.symbol.pins,
-      rectangles: component.symbol.rectangles,
-      circles: component.symbol.circles,
-      ellipses: component.symbol.ellipses,
-      arcs: component.symbol.arcs,
-      polylines: component.symbol.polylines,
-      polygons: component.symbol.polygons,
-      paths: component.symbol.paths,
-      origin: component.symbol.origin,
-    },
-    footprint: {
-      // Community components now use the same parsed structure as LCSC
-      name: component.footprint.name,
-      type: component.footprint.type,
-      pads: component.footprint.pads,
-      tracks: component.footprint.tracks,
-      holes: component.footprint.holes,
-      circles: component.footprint.circles,
-      arcs: component.footprint.arcs,
-      rects: component.footprint.rects,
-      texts: component.footprint.texts,
-      vias: component.footprint.vias,
-      origin: component.footprint.origin,
-    },
-    model3d: component.model3d,
-    rawData: component.rawData,
-  }
-}
-
-/**
- * Infer footprint type (SMD or THT) from pads
- */
-function inferFootprintType(
-  pads: EasyEDACommunityComponent['footprint']['pads']
-): 'smd' | 'tht' {
-  // If any pad has a hole, it's through-hole
-  for (const pad of pads) {
-    if (pad.holeRadius && pad.holeRadius > 0) {
-      return 'tht'
-    }
-  }
-  return 'smd'
-}
 
 /**
  * Generate HTML preview file and open it in browser
@@ -701,8 +339,8 @@ async function generateHtmlPreview(
   <div class="instructions">
     <strong>How to use:</strong><br>
     1. Click on a UUID to copy it<br>
-    2. Use <code>easyeda_get</code> with the UUID to see component details<br>
-    3. Use <code>easyeda_fetch</code> with the UUID to download KiCAD files
+    2. Use <code>library_fetch</code> with the UUID to add to global JLC-MCP libraries<br>
+    3. Or use <code>easyeda_fetch</code> for project-local EasyEDA library
   </div>
 
   <div class="grid">
