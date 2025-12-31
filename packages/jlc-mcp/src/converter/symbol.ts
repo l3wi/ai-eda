@@ -84,7 +84,7 @@ export class SymbolConverter {
     component: EasyEDAComponentData,
     options: SymbolConversionOptions = {}
   ): string {
-    const { info } = component;
+    const { info, symbol } = component;
 
     // Try prefix-based template first
     let template = getSymbolTemplate(info.prefix);
@@ -98,8 +98,9 @@ export class SymbolConverter {
       }
     }
 
-    if (template) {
-      // Use fixed layout for passives (R, C, L, D)
+    if (template && symbol.pins.length === 2) {
+      // Use fixed layout for 2-pin passives only (R, C, L, D with 2 pins)
+      // Multi-pin components (bridge rectifiers, multi-terminal LEDs) use EasyEDA layout
       return this.generateFromTemplate(component, template, options);
     } else {
       // Fall back to improved EasyEDA-derived layout for ICs
