@@ -21,6 +21,7 @@ import {
 import { tools, toolHandlers } from './tools/index.js';
 import { createLogger } from './common/index.js';
 import { ensureGlobalLibraryTables } from './converter/index.js';
+import { startHttpServer } from './http/server.js';
 
 const logger = createLogger('jlc-mcp');
 
@@ -101,6 +102,10 @@ async function main() {
       stubsCreated: libraryStubs.symbolsCreated.length + libraryStubs.directoriesCreated.length,
     });
   }
+
+  // Start HTTP server for the component browser UI
+  const httpPort = startHttpServer();
+  logger.info(`Component browser available at http://localhost:${httpPort}`);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EasyEDA Component Browser</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2a2a2a;
+      --bg-card: #333333;
+      --text-primary: #ffffff;
+      --text-secondary: #aaaaaa;
+      --accent: #4a9eff;
+      --accent-hover: #6ab0ff;
+      --success: #22c55e;
+      --error: #ef4444;
+      --border: #444444;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--bg-secondary);
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+
+    .search-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    #search-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 12px 16px;
+      font-size: 16px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      outline: none;
+    }
+
+    #search-input:focus {
+      border-color: var(--accent);
+    }
+
+    #source-select {
+      padding: 12px 16px;
+      font-size: 16px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    #search-btn {
+      padding: 12px 24px;
+      font-size: 16px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    #search-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    #loading {
+      display: flex;
+      justify-content: center;
+      padding: 48px;
+    }
+
+    #loading.hidden {
+      display: none;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+
+    .card-images {
+      display: flex;
+      gap: 2px;
+      background: var(--border);
+    }
+
+    .image-container {
+      flex: 1;
+      aspect-ratio: 1;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .image-container img,
+    .image-container svg {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .image-label {
+      position: absolute;
+      bottom: 4px;
+      left: 4px;
+      font-size: 10px;
+      color: var(--text-secondary);
+      background: rgba(0,0,0,0.7);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .footprint-placeholder,
+    .no-preview {
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .card-info {
+      padding: 12px;
+    }
+
+    .card-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-package,
+    .card-owner {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .card-uuid {
+      display: flex;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      gap: 8px;
+    }
+
+    .card-uuid input {
+      flex: 1;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--text-secondary);
+    }
+
+    .copy-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: 4px;
+      padding: 6px 10px;
+      cursor: pointer;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    .copy-btn.copied {
+      background: var(--success);
+    }
+
+    #pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      margin-top: 32px;
+    }
+
+    .page-btn {
+      padding: 10px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .page-btn:hover:not(:disabled) {
+      background: var(--bg-secondary);
+      border-color: var(--accent);
+    }
+
+    .page-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .page-info {
+      color: var(--text-secondary);
+    }
+
+    .no-results,
+    .error {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 48px;
+      color: var(--text-secondary);
+    }
+
+    .error {
+      color: var(--error);
+    }
+
+    /* Modal */
+    #preview-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    #preview-modal.hidden {
+      display: none;
+    }
+
+    .modal-wrapper {
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      overflow: auto;
+      position: relative;
+    }
+
+    #modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 18px;
+      z-index: 10;
+    }
+
+    #modal-close:hover {
+      background: var(--bg-primary);
+    }
+
+    #modal-content {
+      padding: 24px;
+    }
+
+    .modal-loading {
+      text-align: center;
+      padding: 48px;
+      color: var(--text-secondary);
+    }
+
+    .modal-error {
+      text-align: center;
+      padding: 48px;
+      color: var(--error);
+    }
+
+    .modal-header {
+      margin-bottom: 24px;
+    }
+
+    .modal-header h2 {
+      margin-bottom: 12px;
+    }
+
+    .modal-uuid {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .modal-uuid code {
+      background: var(--bg-primary);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .modal-copy {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+
+    .modal-previews {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .modal-preview h3 {
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .preview-svg {
+      background: #000;
+      border-radius: 8px;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .preview-svg svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .preview-svg .no-preview {
+      color: var(--text-secondary);
+    }
+
+    .modal-info {
+      display: flex;
+      gap: 24px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <h1>EasyEDA Component Browser</h1>
+      <div class="search-bar">
+        <input type="text" id="search-input" placeholder="Search components (e.g., ESP32, STM32, LM7805)..." autofocus />
+        <select id="source-select">
+          <option value="user">Community</option>
+          <option value="lcsc">LCSC</option>
+          <option value="all">All Sources</option>
+        </select>
+        <button id="search-btn">Search</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="loading" class="hidden">
+      <div class="spinner"></div>
+    </div>
+    <div id="results-grid"></div>
+    <div id="pagination"></div>
+  </main>
+
+  <div id="preview-modal" class="hidden">
+    <div class="modal-wrapper">
+      <button id="modal-close">&times;</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <script>
+    var n=new Set([3,4,10,11]);function k(z,j){return(z-j)*0.254}function R(z){return z*0.254}function m(z){if(!z.shape||z.shape.length===0)return"";let j=z.BBox||{x:0,y:0,width:100,height:100},K=5,$=`${j.x-K} ${j.y-K} ${j.width+K*2} ${j.height+K*2}`,G=[],V=[],O=[],I=[],_=[];for(let Z of z.shape){if(typeof Z!=="string")continue;if(Z.startsWith("SOLIDREGION~")){let H=Qj(Z);if(H)G.push(H)}else if(Z.startsWith("TRACK~")){let H=Oj(Z);if(H)V.push(H)}else if(Z.startsWith("PAD~")){let H=Nj(Z);if(H){if(O.push(H.pad),H.hole)I.push(H.hole)}}else if(Z.startsWith("TEXT~")){let H=Uj(Z);if(H)_.push(H)}}let F=[...G,...V,...O,...I,..._];if(F.length===0)return"";return`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${$}" style="background:#000000">
+  <style>
+    .pad { fill: #CC0000; stroke: none; }
+    .pad-hole { fill: #666666; }
+    .track { fill: none; stroke: #FFFF00; stroke-linecap: round; stroke-linejoin: round; }
+    .region { fill: #CC0000; opacity: 0.6; }
+    .text-path { fill: none; stroke: #FFFF00; stroke-width: 0.4; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  ${F.join(`
+  `)}
+</svg>`}function Nj(z){let j=z.split("~"),K=j[1],$=parseFloat(j[2])||0,G=parseFloat(j[3])||0;if(K==="POLYGON"){let F=parseFloat(j[9])||0,Z=j[10]||"";if(!Z)return null;let H=Z.split(" ").map(Number);if(H.length<4)return null;let P=`M ${H[0]} ${H[1]}`;for(let E=2;E<H.length;E+=2)P+=` L ${H[E]} ${H[E+1]}`;return P+=" Z",{pad:`<path class="pad" d="${P}"/>`,hole:F>0?`<circle class="pad-hole" cx="${$}" cy="${G}" r="${F}"/>`:null}}let V=parseFloat(j[4])||0,O=parseFloat(j[5])||0,I=parseFloat(j[9])||0,_="";if(K==="ELLIPSE"||K==="OVAL"||K==="ROUND"){let F=V/2,Z=O/2;_=`<ellipse class="pad" cx="${$}" cy="${G}" rx="${F}" ry="${Z}"/>`}else{let F=$-V/2,Z=G-O/2;_=`<rect class="pad" x="${F}" y="${Z}" width="${V}" height="${O}"/>`}return{pad:_,hole:I>0?`<circle class="pad-hole" cx="${$}" cy="${G}" r="${I}"/>`:null}}function Oj(z){let j=z.split("~"),K=parseFloat(j[1])||0.5,$=j[4]||"";if(!$)return null;let G=$.split(" ").map(Number);if(G.length<4)return null;let V=`M ${G[0]} ${G[1]}`;for(let O=2;O<G.length;O+=2)V+=` L ${G[O]} ${G[O+1]}`;return`<path class="track" d="${V}" stroke-width="${K}"/>`}function Qj(z){let K=z.split("~")[3]||"";if(!K||!K.startsWith("M"))return null;return`<path class="region" d="${K}"/>`}function Uj(z){let K=z.split("~")[11]||"";if(!K||!K.startsWith("M"))return null;return`<path class="text-path" d="${K}"/>`}function T(z,j){return(z-j)*0.254}function W(z,j){return-(z-j)*0.254}function i(z,j,K,$){let G=z.split(" ").map(Number);if(G.length<4)return"";let V=T(G[0],j),O=W(G[1],K),I=`M ${V} ${O}`;for(let _=2;_<G.length;_+=2){let F=T(G[_],j),Z=W(G[_+1]??0,K);I+=` L ${F} ${Z}`}if($)I+=" Z";return I}function r(z,j,K){let $="",G=0;while(G<z.length){while(G<z.length&&/\s/.test(z[G]))G++;if(G>=z.length)break;let V=z[G];G++;while(G<z.length&&/\s/.test(z[G]))G++;if(V==="M"||V==="L"){let O=z.slice(G).match(/^(-?[\d.]+)\s+(-?[\d.]+)/);if(O){let I=T(parseFloat(O[1]),j),_=W(parseFloat(O[2]),K);$+=`${V} ${I} ${_} `,G+=O[0].length}}else if(V==="A"){let O=z.slice(G).match(/^(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+([01])\s+([01])\s+(-?[\d.]+)\s+(-?[\d.]+)/);if(O){let I=parseFloat(O[1])*0.254,_=parseFloat(O[2])*0.254,F=parseFloat(O[3]),Z=O[4],H=O[5]==="0"?"1":"0",P=T(parseFloat(O[6]),j),E=W(parseFloat(O[7]),K);$+=`A ${I} ${_} ${F} ${Z} ${H} ${P} ${E} `,G+=O[0].length}}else if(V==="Z"||V==="z")$+="Z ";else if(V==="C"){let O=z.slice(G).match(/^(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)/);if(O){let I=T(parseFloat(O[1]),j),_=W(parseFloat(O[2]),K),F=T(parseFloat(O[3]),j),Z=W(parseFloat(O[4]),K),H=T(parseFloat(O[5]),j),P=W(parseFloat(O[6]),K);$+=`C ${I} ${_} ${F} ${Z} ${H} ${P} `,G+=O[0].length}}else if(V==="Q"){let O=z.slice(G).match(/^(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)/);if(O){let I=T(parseFloat(O[1]),j),_=W(parseFloat(O[2]),K),F=T(parseFloat(O[3]),j),Z=W(parseFloat(O[4]),K);$+=`Q ${I} ${_} ${F} ${Z} `,G+=O[0].length}}else{let O=z.slice(G).match(/^[\s\d.,+-]+/);if(O)G+=O[0].length}}return $.trim()}function o(z){let j=z.origin||{x:0,y:0},K=z.pins||[],$=z.rectangles||[],G=z.circles||[],V=z.ellipses||[],O=z.polylines||[],I=z.polygons||[],_=z.arcs||[],F=z.paths||[],Z=1/0,H=1/0,P=-1/0,E=-1/0,C=(J,N)=>{Z=Math.min(Z,J),H=Math.min(H,N),P=Math.max(P,J),E=Math.max(E,N)};for(let J of K){let N=T(J.x,j.x),U=W(J.y,j.y);C(N,U)}for(let J of $){let N=T(J.x,j.x),U=W(J.y,j.y),L=N+R(J.width),A=U-R(J.height);C(N,U),C(L,A)}for(let J of G){let N=T(J.cx,j.x),U=W(J.cy,j.y),L=R(J.radius);C(N-L,U-L),C(N+L,U+L)}for(let J of V){let N=T(J.cx,j.x),U=W(J.cy,j.y),L=R(J.radiusX),A=R(J.radiusY);C(N-L,U-A),C(N+L,U+A)}for(let J of[...O,...I]){let N=J.points.split(" ").map(Number);for(let U=0;U<N.length;U+=2){let L=T(N[U],j.x),A=W(N[U+1]??0,j.y);C(L,A)}}for(let J of[..._,...F]){let N=J.path.match(/-?[\d.]+/g)?.map(Number)||[];for(let U=0;U<N.length;U+=2)if(U+1<N.length){let L=T(N[U],j.x),A=W(N[U+1],j.y);C(L,A)}}if(!isFinite(Z))Z=-10,H=-10,P=10,E=10;let D=2,M=P-Z+D*2,x=E-H+D*2,g=`${Z-D} ${H-D} ${M} ${x}`,Q=[],q=[];for(let J of $){let N=T(J.x,j.x),U=W(J.y,j.y),L=R(J.width),A=R(J.height),w=R(J.strokeWidth||2),f=J.rx?R(J.rx):0,u=J.ry?R(J.ry):0,S=f>0?` rx="${f}"`:"",Kj=u>0?` ry="${u}"`:"";Q.push(`<rect x="${N}" y="${U-A}" width="${L}" height="${A}"${S}${Kj} class="body" stroke-width="${w}"/>`)}for(let J of G){let N=T(J.cx,j.x),U=W(J.cy,j.y),L=R(J.radius),A=R(J.strokeWidth||2);Q.push(`<circle cx="${N}" cy="${U}" r="${L}" class="body" stroke-width="${A}"/>`)}for(let J of V){let N=T(J.cx,j.x),U=W(J.cy,j.y),L=R(J.radiusX),A=R(J.radiusY),w=R(J.strokeWidth||2);Q.push(`<ellipse cx="${N}" cy="${U}" rx="${L}" ry="${A}" class="body" stroke-width="${w}"/>`)}for(let J of O){let N=i(J.points,j.x,j.y,!1);if(N){let U=R(J.strokeWidth||2);Q.push(`<path d="${N}" class="body" stroke-width="${U}"/>`)}}for(let J of I){let N=i(J.points,j.x,j.y,!0);if(N){let U=R(J.strokeWidth||2);Q.push(`<path d="${N}" class="filled" stroke-width="${U}"/>`)}}for(let J of _){let N=r(J.path,j.x,j.y);if(N){let U=R(J.strokeWidth||2);Q.push(`<path d="${N}" class="body" stroke-width="${U}"/>`)}}for(let J of F){let N=r(J.path,j.x,j.y);if(N){let U=R(J.strokeWidth||2);Q.push(`<path d="${N}" class="body" stroke-width="${U}"/>`)}}for(let J of K){let N=T(J.x,j.x),U=W(J.y,j.y);q.push(`<circle cx="${N}" cy="${U}" r="0.5" class="pin"/>`)}let B=[...Q,...q];return`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${g}" style="background:#000000">
+  <style>
+    .body { fill: none; stroke: #00AAFF; stroke-linecap: round; stroke-linejoin: round; }
+    .filled { fill: #00AAFF; fill-opacity: 0.3; stroke: #00AAFF; stroke-linecap: round; stroke-linejoin: round; }
+    .pin { fill: #CC0000; stroke: none; }
+  </style>
+  ${B.join(`
+  `)}
+</svg>`}function d(z){let j=z.pads||[],K=z.tracks||[],$=z.circles||[],G=z.origin||{x:0,y:0};if(j.length===0&&K.length===0)return"";let V=K.filter((Q)=>!Q.layerId||n.has(Q.layerId)),O=$.filter((Q)=>!Q.layerId||n.has(Q.layerId)),I=1/0,_=1/0,F=-1/0,Z=-1/0;for(let Q of j){let q=k(Q.centerX,G.x),B=k(Q.centerY,G.y),J=R(Q.width)/2,N=R(Q.height)/2;I=Math.min(I,q-J),_=Math.min(_,B-N),F=Math.max(F,q+J),Z=Math.max(Z,B+N)}for(let Q of V){let q=Q.points.split(" ").map(Number);for(let B=0;B<q.length;B+=2){let J=k(q[B],G.x),N=k(q[B+1]??0,G.y);I=Math.min(I,J),F=Math.max(F,J),_=Math.min(_,N),Z=Math.max(Z,N)}}if(!isFinite(I))return"";let H=0.5,P=F-I+H*2,E=Z-_+H*2,C=`${I-H} ${_-H} ${P} ${E}`,D=[],M=[],x=[];for(let Q of V){let q=Q.points.split(" ").map(Number);if(q.length>=4){let B=k(q[0],G.x),J=k(q[1],G.y),N=`M ${B} ${J}`;for(let L=2;L<q.length;L+=2){let A=k(q[L],G.x),w=k(q[L+1]??0,G.y);N+=` L ${A} ${w}`}let U=R(Q.strokeWidth);D.push(`<path class="track" d="${N}" stroke-width="${U}"/>`)}}for(let Q of j){let q=k(Q.centerX,G.x),B=k(Q.centerY,G.y),J=R(Q.width),N=R(Q.height),U=Q.rotation||0,L=U!==0?` transform="rotate(${U} ${q} ${B})"`:"";if(Q.shape==="ELLIPSE"||Q.shape==="OVAL"||Q.shape==="ROUND"){let A=J/2,w=N/2;M.push(`<ellipse class="pad" cx="${q}" cy="${B}" rx="${A}" ry="${w}"${L}/>`)}else if(Q.shape==="POLYGON"&&Q.points){let A=Q.points.split(" ").map(Number);if(A.length>=4){let w="";for(let f=0;f<A.length;f+=2){let u=k(A[f],G.x),S=k(A[f+1]??0,G.y);w+=f===0?`M ${u} ${S}`:` L ${u} ${S}`}w+=" Z",M.push(`<path class="pad" d="${w}"${L}/>`)}}else{let A=q-J/2,w=B-N/2;M.push(`<rect class="pad" x="${A}" y="${w}" width="${J}" height="${N}"${L}/>`)}if(Q.holeRadius&&Q.holeRadius>0){let A=R(Q.holeRadius);x.push(`<circle class="pad-hole" cx="${q}" cy="${B}" r="${A}"/>`)}}for(let Q of O){let q=k(Q.cx,G.x),B=k(Q.cy,G.y),J=R(Q.radius),N=R(Q.strokeWidth||2);D.push(`<circle class="track" cx="${q}" cy="${B}" r="${J}" fill="none" stroke-width="${N}"/>`)}let g=[...D,...M,...x];return`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${C}" style="background:#000000">
+  <style>
+    .pad { fill: #CC0000; stroke: none; }
+    .pad-hole { fill: #666666; }
+    .track { fill: none; stroke: #FFFF00; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  ${g.join(`
+  `)}
+</svg>`}var e=1,b="",Gj="user",l=!1,p=null,v=document.getElementById("search-input"),t=document.getElementById("source-select"),Zj=document.getElementById("search-btn"),a=document.getElementById("results-grid"),c=document.getElementById("pagination"),$j=document.getElementById("loading"),h=document.getElementById("preview-modal"),y=document.getElementById("modal-content"),Hj=document.getElementById("modal-close");function jj(){let j=new URLSearchParams(window.location.search).get("q");if(j)v.value=j,b=j,X();v.addEventListener("input",Vj),v.addEventListener("keydown",(K)=>{if(K.key==="Enter")K.preventDefault(),X()}),Zj.addEventListener("click",X),t.addEventListener("change",()=>{if(Gj=t.value,b)X()}),Hj.addEventListener("click",s),h.addEventListener("click",(K)=>{if(K.target===h)s()}),document.addEventListener("keydown",(K)=>{if(K.key==="Escape")s()})}function Vj(){if(p)clearTimeout(p);p=window.setTimeout(()=>{let z=v.value.trim();if(z&&z!==b)b=z,e=1,X()},300)}async function X(){let z=v.value.trim();if(!z||l)return;b=z,l=!0,zj(!0);try{let j=new URLSearchParams({q:z,source:Gj,page:String(e),limit:"20"}),K=await fetch(`/api/search?${j}`);if(!K.ok)throw new Error("Search failed");let $=await K.json();_j($.results),Aj($.pagination)}catch(j){console.error("Search error:",j),a.innerHTML='<div class="error">Search failed. Please try again.</div>'}finally{l=!1,zj(!1)}}function _j(z){if(z.length===0){a.innerHTML='<div class="no-results">No components found. Try a different search term.</div>';return}a.innerHTML=z.map((j)=>`
+    <div class="card" data-uuid="${j.uuid}">
+      <div class="card-images">
+        <div class="image-container symbol-container" data-uuid="${j.uuid}">
+          <img src="${j.thumb}" alt="Symbol" onerror="this.style.display='none'" />
+          <div class="image-label">Symbol</div>
+        </div>
+        <div class="image-container footprint-container" data-uuid="${j.uuid}">
+          <div class="footprint-placeholder">Loading...</div>
+          <div class="image-label">Footprint</div>
+        </div>
+      </div>
+      <div class="card-info">
+        <div class="card-title" title="${Y(j.title)}">${Y(j.title)}</div>
+        <div class="card-package">Package: ${Y(j.package||"Unknown")}</div>
+        <div class="card-owner">By: ${Y(j.owner.nickname||j.owner.username)}</div>
+      </div>
+      <div class="card-uuid">
+        <input type="text" value="${j.uuid}" readonly />
+        <button class="copy-btn" data-uuid="${j.uuid}" title="Copy UUID">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+        </button>
+      </div>
+    </div>
+  `).join(""),document.querySelectorAll(".copy-btn").forEach((j)=>{j.addEventListener("click",(K)=>{K.stopPropagation();let $=j.dataset.uuid;if($)Jj($,j)})}),document.querySelectorAll(".image-container").forEach((j)=>{j.addEventListener("click",async()=>{let K=j.dataset.uuid;if(K)Lj(K)})}),z.forEach((j)=>Ij(j.uuid))}async function Ij(z){let j=document.querySelector(`.footprint-container[data-uuid="${z}"]`);if(!j)return;try{let K=await fetch(`/api/component/${z}`);if(!K.ok)return;let G=(await K.json()).footprint;if(G?.head?.shape){let V=m({shape:G.head.shape,BBox:G.head.BBox});if(V){j.innerHTML=V+'<div class="image-label">Footprint</div>';return}}if(G?.pads||G?.tracks){let V=d({pads:G.pads,tracks:G.tracks,circles:G.circles,origin:G.origin});if(V){j.innerHTML=V+'<div class="image-label">Footprint</div>';return}}j.innerHTML='<div class="no-preview">No preview</div><div class="image-label">Footprint</div>'}catch{j.innerHTML='<div class="no-preview">Error</div><div class="image-label">Footprint</div>'}}async function Lj(z){h.classList.remove("hidden"),y.innerHTML='<div class="modal-loading">Loading...</div>';try{let j=await fetch(`/api/component/${z}`);if(!j.ok)throw new Error("Failed to fetch component");let K=await j.json(),$="",G=K.footprint;if(G?.head?.shape)$=m({shape:G.head.shape,BBox:G.head.BBox});if(!$&&(G?.pads||G?.tracks))$=d({pads:G.pads,tracks:G.tracks,circles:G.circles,origin:G.origin});let V=o(K.symbol);y.innerHTML=`
+      <div class="modal-header">
+        <h2>${Y(K.title)}</h2>
+        <div class="modal-uuid">
+          <code>${K.uuid}</code>
+          <button class="copy-btn modal-copy" data-uuid="${K.uuid}">Copy UUID</button>
+        </div>
+      </div>
+      <div class="modal-previews">
+        <div class="modal-preview">
+          <h3>Symbol</h3>
+          <div class="preview-svg">${V||'<div class="no-preview">No symbol preview</div>'}</div>
+        </div>
+        <div class="modal-preview">
+          <h3>Footprint: ${Y(K.footprint?.name||"Unknown")}</h3>
+          <div class="preview-svg">${$||'<div class="no-preview">No footprint preview</div>'}</div>
+        </div>
+      </div>
+      <div class="modal-info">
+        <p><strong>Pins:</strong> ${K.symbol?.pins?.length||0}</p>
+        <p><strong>Pads:</strong> ${K.footprint?.pads?.length||0}</p>
+      </div>
+    `;let O=y.querySelector(".modal-copy");if(O)O.addEventListener("click",()=>{Jj(K.uuid,O)})}catch(j){console.error("Modal error:",j),y.innerHTML='<div class="modal-error">Failed to load component details</div>'}}function s(){h.classList.add("hidden")}function Aj(z){if(z.totalPages<=1){c.innerHTML="";return}c.innerHTML=`
+    <button class="page-btn" ${z.hasPrev?"":"disabled"} data-page="${z.page-1}">
+      ← Prev
+    </button>
+    <span class="page-info">Page ${z.page} of ${z.totalPages}</span>
+    <button class="page-btn" ${z.hasNext?"":"disabled"} data-page="${z.page+1}">
+      Next →
+    </button>
+  `,c.querySelectorAll(".page-btn").forEach((j)=>{j.addEventListener("click",()=>{let K=parseInt(j.dataset.page||"1",10);if(K>0)e=K,X(),window.scrollTo(0,0)})})}async function Jj(z,j){try{await navigator.clipboard.writeText(z),j.classList.add("copied"),setTimeout(()=>j.classList.remove("copied"),1500)}catch{let K=document.createElement("input");K.value=z,document.body.appendChild(K),K.select(),document.execCommand("copy"),document.body.removeChild(K),j.classList.add("copied"),setTimeout(()=>j.classList.remove("copied"),1500)}}function zj(z){$j.classList.toggle("hidden",!z)}function Y(z){let j=document.createElement("div");return j.textContent=z,j.innerHTML}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",jj);else jj();
+
+  </script>
+</body>
+</html>
