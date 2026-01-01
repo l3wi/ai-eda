@@ -382,7 +382,7 @@ function createMinimalTemplates(
     mcpServers: {
       jlc: {
         command: 'npx',
-        args: ['-y', 'jlc-mcp@latest'],
+        args: ['-y', '@jlcpcb/mcp@latest'],
         env: {
           JLC_CACHE_DIR: './.cache/jlc',
         },

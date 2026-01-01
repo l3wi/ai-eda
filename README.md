@@ -8,7 +8,7 @@ Set up KiCad projects optimized for AI-assisted design workflows with Claude Cod
 
 - Interactive project scaffolding with KiCad integration
 - Environment health checks and auto-repair
-- MCP server management (jlc-mcp, kicad-pcb, kicad-sch)
+- MCP server management (@jlcpcb/mcp, kicad-pcb, kicad-sch)
 - Template system for Claude commands, agents, and skills
 - Design constraints configuration
 - Cross-platform support (macOS, Windows, Linux)
@@ -185,7 +185,7 @@ Three MCP servers are configured for the complete EDA workflow:
 
 | Server | Purpose | Installation |
 |--------|---------|--------------|
-| `jlc` | Component sourcing from LCSC | Via npx (automatic) |
+| `jlc` | Component sourcing from LCSC/JLCPCB | Via npx (`@jlcpcb/mcp`) |
 | `kicad-pcb` | PCB manipulation | `claude-eda kicad-mcp --install` |
 | `kicad-sch` | Schematic manipulation | `claude-eda kicad-sch-mcp --install` |
 
@@ -211,7 +211,9 @@ bun run typecheck # Type checking
 
 ## Related Packages
 
-- [jlc-mcp](../jlc-mcp) - JLC/LCSC component sourcing MCP server
+- [@jlcpcb/mcp](https://www.npmjs.com/package/@jlcpcb/mcp) - MCP server for Claude Desktop/Code integration
+- [@jlcpcb/cli](https://www.npmjs.com/package/@jlcpcb/cli) - Interactive terminal UI for component search & library management
+- [@jlcpcb/core](https://www.npmjs.com/package/@jlcpcb/core) - Core library with API clients, converters, and services
 
 ## License
 
