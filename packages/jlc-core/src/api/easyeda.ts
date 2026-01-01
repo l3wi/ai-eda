@@ -141,6 +141,7 @@ export class EasyEDAClient {
         rects: footprintData.rects,
         texts: footprintData.texts,
         vias: footprintData.vias,
+        solidRegions: footprintData.solidRegions,
         origin: footprintOrigin,
       },
       model3d: footprintData.model3d,

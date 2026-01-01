@@ -2,7 +2,7 @@
  * EasyEDA Footprint to KiCad Footprint Converter
  * Complete rewrite to handle all EasyEDA shape types
  *
- * Supported shapes: PAD, TRACK, HOLE, CIRCLE, ARC, RECT, VIA, TEXT
+ * Supported shapes: PAD, TRACK, HOLE, CIRCLE, ARC, RECT, VIA, TEXT, SOLIDREGION
  */
 
 import type {
@@ -15,6 +15,7 @@ import type {
   EasyEDARect,
   EasyEDAVia,
   EasyEDAText,
+  EasyEDASolidRegion,
 } from '../types/index.js';
 import { KICAD_FOOTPRINT_VERSION, KICAD_LAYERS } from '../constants/index.js';
 import { roundTo } from '../utils/index.js';
@@ -95,6 +96,36 @@ interface BoundingBox {
   maxX: number;
   minY: number;
   maxY: number;
+}
+
+/**
+ * Calculate the geometric center of pads (in EasyEDA units, before conversion)
+ * Used to center the footprint at (0,0) in KiCad
+ */
+function calculatePadCenter(pads: EasyEDAPad[]): Point {
+  if (pads.length === 0) {
+    return { x: 0, y: 0 };
+  }
+
+  let minX = Infinity,
+    maxX = -Infinity;
+  let minY = Infinity,
+    maxY = -Infinity;
+
+  for (const pad of pads) {
+    // Include pad size in bounds calculation
+    const hw = pad.width / 2;
+    const hh = pad.height / 2;
+    minX = Math.min(minX, pad.centerX - hw);
+    maxX = Math.max(maxX, pad.centerX + hw);
+    minY = Math.min(minY, pad.centerY - hh);
+    maxY = Math.max(maxY, pad.centerY + hh);
+  }
+
+  return {
+    x: (minX + maxX) / 2,
+    y: (minY + maxY) / 2,
+  };
 }
 
 // =============================================================================
@@ -221,8 +252,12 @@ export class FootprintConverter {
   convert(component: EasyEDAComponentData, options: FootprintConversionOptions = {}): string {
     const { info, footprint, model3d } = component;
     const name = this.sanitizeName(footprint.name);
-    const { origin } = footprint;
+    // Calculate geometric center from pads to center footprint at (0,0)
+    const origin = calculatePadCenter(footprint.pads);
     const { include3DModel = false } = options;
+
+    // Calculate bounds first (needed for text positioning)
+    const bounds = this.calculateBounds(footprint, origin);
 
     // Map footprint type for attr token
     const attrType = footprint.type === 'tht' ? 'through_hole' : 'smd';
@@ -235,8 +270,8 @@ export class FootprintConverter {
 \t(tags "${this.escapeString(info.category || 'component')}")
 `;
 
-    // Add properties
-    output += this.generateProperties(info, name);
+    // Add properties (with bounds for text positioning)
+    output += this.generateProperties(info, name, bounds);
 
     // Add attributes
     output += `\t(attr ${attrType})\n`;
@@ -281,8 +316,10 @@ export class FootprintConverter {
       output += this.generateText(text, origin);
     }
 
-    // Calculate bounding box for courtyard (from all elements)
-    const bounds = this.calculateBounds(footprint, origin);
+    // Generate SOLIDREGION elements as fp_poly
+    for (const solidRegion of footprint.solidRegions) {
+      output += this.generateSolidRegion(solidRegion, origin);
+    }
 
     // Add fab reference text
     output += this.generateFabReference();
@@ -640,6 +677,60 @@ ${justify ? `\t\t\t(justify ${justify})\n` : ''}\t\t)
 \t)\n`;
   }
 
+  /**
+   * Generate SOLIDREGION as fp_poly (filled polygon)
+   * Parses SVG path with M/L/Z commands and converts to KiCad polygon
+   */
+  private generateSolidRegion(region: EasyEDASolidRegion, origin: Point): string {
+    const layer = getLayer(region.layerId);
+    const points = this.parseSvgPathToPoints(region.path, origin);
+
+    if (points.length < 3) return '';
+
+    let output = `\t(fp_poly\n`;
+    output += `\t\t(pts\n`;
+
+    for (const pt of points) {
+      output += `\t\t\t(xy ${pt.x} ${pt.y})\n`;
+    }
+
+    output += `\t\t)\n`;
+    output += `\t\t(stroke\n`;
+    output += `\t\t\t(width 0)\n`;
+    output += `\t\t\t(type solid)\n`;
+    output += `\t\t)\n`;
+    output += `\t\t(fill solid)\n`;
+    output += `\t\t(layer "${layer}")\n`;
+    output += `\t)\n`;
+
+    return output;
+  }
+
+  /**
+   * Parse SVG path string (M/L/Z commands) to array of points
+   * Format: "M x1,y1 L x2,y2 L x3,y3 Z" or "M x1,y1 L x2,y2 ..."
+   */
+  private parseSvgPathToPoints(path: string, origin: Point): Point[] {
+    const points: Point[] = [];
+
+    // Match M and L commands with coordinates
+    // Supports both "M425,230" and "M 425 230" formats
+    const commandRegex = /([ML])\s*([\d.-]+)[,\s]+([\d.-]+)/gi;
+    let match;
+
+    while ((match = commandRegex.exec(path)) !== null) {
+      const x = parseFloat(match[2]);
+      const y = parseFloat(match[3]);
+
+      points.push({
+        x: convertX(x, origin.x),
+        y: convertY(y, origin.y),
+      });
+    }
+
+    return points;
+  }
+
   // ===========================================================================
   // Property and outline generation
   // ===========================================================================
@@ -708,13 +799,20 @@ ${justify ? `\t\t\t(justify ${justify})\n` : ''}\t\t)
 
   /**
    * Generate footprint properties
+   * Positions Reference above courtyard and Value below courtyard
    */
-  private generateProperties(info: EasyEDAComponentData['info'], name: string): string {
+  private generateProperties(info: EasyEDAComponentData['info'], name: string, bounds: BoundingBox): string {
     let props = '';
 
-    // Reference (required, visible on silkscreen)
+    // Calculate text positions based on courtyard bounds
+    // Add margin for courtyard (0.25) + text offset (1.5)
+    const textOffset = 1.75;
+    const refY = roundTo(bounds.minY - textOffset, 2);
+    const valY = roundTo(bounds.maxY + textOffset, 2);
+
+    // Reference (required, visible on silkscreen) - above courtyard
     props += `\t(property "Reference" "REF**"
-\t\t(at 0 -3 0)
+\t\t(at 0 ${refY} 0)
 \t\t(layer "${KICAD_LAYERS.F_SILKS}")
 \t\t(effects
 \t\t\t(font
@@ -724,9 +822,9 @@ ${justify ? `\t\t\t(justify ${justify})\n` : ''}\t\t)
 \t\t)
 \t)\n`;
 
-    // Value (required, visible on fab layer)
+    // Value (required, visible on fab layer) - below courtyard
     props += `\t(property "Value" "${this.escapeString(this.sanitizeName(info.name))}"
-\t\t(at 0 3 0)
+\t\t(at 0 ${valY} 0)
 \t\t(layer "${KICAD_LAYERS.F_FAB}")
 \t\t(effects
 \t\t\t(font

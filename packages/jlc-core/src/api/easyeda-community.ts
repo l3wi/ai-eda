@@ -245,6 +245,7 @@ export class EasyEDACommunityClient {
         rects: footprintData.rects,
         texts: footprintData.texts,
         vias: footprintData.vias,
+        solidRegions: footprintData.solidRegions,
         model3d: footprintData.model3d,
         origin: footprintOrigin,
         head: fpDataStr.head || {},

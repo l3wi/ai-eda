@@ -287,6 +287,18 @@ export interface EasyEDAText {
   isLocked: boolean;
 }
 
+/**
+ * SOLIDREGION element - filled polygon region
+ * Format: SOLIDREGION~layerId~~path~fillType~id~~~~
+ * Used for copper fills, solder paste regions, and documentation shapes
+ */
+export interface EasyEDASolidRegion {
+  layerId: number;
+  path: string;            // SVG path with M/L/Z commands (e.g., "M425,230L445,230L445,220L425,220Z")
+  fillType: string;        // "solid", "none", etc.
+  id: string;
+}
+
 // =============================================================================
 // Parsed Component Data
 // =============================================================================
@@ -305,6 +317,7 @@ export interface EasyEDAFootprintData {
   rects: EasyEDARect[];
   texts: EasyEDAText[];
   vias: EasyEDAVia[];
+  solidRegions: EasyEDASolidRegion[];
   origin: { x: number; y: number };
   model3d?: { name: string; uuid: string }; // Extracted from SVGNODE
 }

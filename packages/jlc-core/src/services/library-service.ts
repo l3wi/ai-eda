@@ -4,9 +4,9 @@
  */
 
 import { existsSync } from 'fs';
-import { readFile } from 'fs/promises';
+import { readFile, readdir } from 'fs/promises';
 import { homedir, platform } from 'os';
-import { join } from 'path';
+import { join, basename } from 'path';
 
 import type { EasyEDAComponentData, EasyEDACommunityComponent } from '../types/index.js';
 import type { LibraryCategory } from '../converter/category-router.js';
@@ -27,6 +27,7 @@ import {
   get3DModelsDirName,
   getSymbolReference,
   getFootprintReference,
+  getAllCategories,
 } from '../converter/category-router.js';
 
 // Library naming
@@ -46,6 +47,7 @@ const EASYEDA_LIBRARY_DESCRIPTION = 'EasyEDA Community Component Library';
 export interface InstallOptions {
   projectPath?: string;
   include3d?: boolean;
+  force?: boolean;
 }
 
 export interface InstallResult {
@@ -64,7 +66,7 @@ export interface InstallResult {
     footprint?: string;
     model3d?: string;
   };
-  symbolAction: 'created' | 'appended' | 'exists';
+  symbolAction: 'created' | 'appended' | 'exists' | 'replaced';
   validationData: ValidationData;
 }
 
@@ -101,6 +103,21 @@ export interface InstalledComponent {
   symbolRef: string;
   footprintRef: string;
   library: string;
+  has3dModel: boolean;
+}
+
+export interface LibraryStatus {
+  installed: boolean;
+  linked: boolean;
+  version: string;
+  componentCount: number;
+  paths: {
+    symbolsDir: string;
+    footprintsDir: string;
+    models3dDir: string;
+    symLibTable: string;
+    fpLibTable: string;
+  };
 }
 
 export interface ListOptions {
@@ -126,6 +143,7 @@ export interface LibraryService {
   listInstalled(options?: ListOptions): Promise<InstalledComponent[]>;
   update(options?: UpdateOptions): Promise<UpdateResult>;
   ensureGlobalTables(): Promise<void>;
+  getStatus(): Promise<LibraryStatus>;
 }
 
 interface LibraryPaths {
@@ -188,6 +206,86 @@ function isLcscId(id: string): boolean {
   return /^C\d+$/.test(id);
 }
 
+function getKicadConfigDir(version: string): string {
+  const home = homedir();
+  const plat = platform();
+
+  if (plat === 'darwin') {
+    return join(home, 'Library', 'Preferences', 'kicad', version);
+  } else if (plat === 'win32') {
+    return join(process.env.APPDATA || join(home, 'AppData', 'Roaming'), 'kicad', version);
+  } else {
+    return join(home, '.config', 'kicad', version);
+  }
+}
+
+// Parse .kicad_sym file to extract installed components
+async function parseSymbolLibrary(
+  filePath: string,
+  libraryName: string,
+  category: LibraryCategory,
+  models3dDir: string
+): Promise<InstalledComponent[]> {
+  const components: InstalledComponent[] = [];
+
+  try {
+    const content = await readFile(filePath, 'utf-8');
+
+    // Match symbol definitions: (symbol "JLC-MCP-Resistors:R_100k" ...)
+    const symbolPattern = /\(symbol\s+"([^"]+)"\s+/g;
+    const lcscPattern = /\(property\s+"LCSC"\s+"(C\d+)"/g;
+    const footprintPattern = /\(property\s+"Footprint"\s+"([^"]+)"/g;
+
+    // Split by symbol definitions to process each
+    const symbols = content.split(/(?=\(symbol\s+"[^"]+"\s+\()/);
+
+    for (const symbolBlock of symbols) {
+      // Skip header block
+      if (!symbolBlock.includes('(symbol "')) continue;
+
+      // Extract symbol name
+      const symbolMatch = symbolBlock.match(/\(symbol\s+"([^"]+)"/);
+      if (!symbolMatch) continue;
+
+      const fullSymbolRef = symbolMatch[1];
+      // Skip if this is a subsymbol (contains _1_1, _0_1, etc.)
+      if (fullSymbolRef.includes('_') && /_(0|1)_(0|1)$/.test(fullSymbolRef)) continue;
+
+      // Extract LCSC ID
+      const lcscMatch = symbolBlock.match(/\(property\s+"LCSC"\s+"(C\d+)"/);
+      const lcscId = lcscMatch ? lcscMatch[1] : '';
+
+      // Extract name from symbol ref (after the colon)
+      const nameParts = fullSymbolRef.split(':');
+      const name = nameParts.length > 1 ? nameParts[1] : fullSymbolRef;
+
+      // Extract footprint reference
+      const fpMatch = symbolBlock.match(/\(property\s+"Footprint"\s+"([^"]+)"/);
+      const footprintRef = fpMatch ? fpMatch[1] : '';
+
+      // Check for 3D model
+      const model3dPath = join(models3dDir, `${name}.step`);
+      const has3dModel = existsSync(model3dPath);
+
+      if (lcscId) {
+        components.push({
+          lcscId,
+          name,
+          category,
+          symbolRef: fullSymbolRef,
+          footprintRef,
+          library: libraryName,
+          has3dModel,
+        });
+      }
+    }
+  } catch {
+    // File read error - return empty
+  }
+
+  return components;
+}
+
 function adaptCommunityComponent(component: EasyEDACommunityComponent): EasyEDAComponentData {
   const symbolHead = component.symbol.head as Record<string, unknown> | undefined;
   const cPara = (symbolHead?.c_para as Record<string, string>) || {};
@@ -224,6 +322,7 @@ function adaptCommunityComponent(component: EasyEDACommunityComponent): EasyEDAC
       rects: component.footprint.rects,
       texts: component.footprint.texts,
       vias: component.footprint.vias,
+      solidRegions: component.footprint.solidRegions,
       origin: component.footprint.origin,
     },
     model3d: component.model3d,
@@ -295,6 +394,7 @@ export function createLibraryService(): LibraryService {
       let footprintDir: string;
       let models3dDir: string;
       let category: string | undefined;
+      let modelPath: string | undefined;
 
       if (isCommunityComponent) {
         // EasyEDA community component → project-local EasyEDA library
@@ -309,8 +409,29 @@ export function createLibraryService(): LibraryService {
         symbolFile = join(symbolsDir, EASYEDA_SYMBOL_LIBRARY_NAME);
         symbolName = component.info.name.replace(/[^a-zA-Z0-9_-]/g, '_');
 
-        // Generate custom footprint
-        const footprint = footprintConverter.convert(component, { libraryName: EASYEDA_LIBRARY_NAME });
+        // Download 3D model first if available (needed for footprint generation)
+        // Community components include 3D by default
+        const include3d = options.include3d ?? true;
+        let modelRelativePath: string | undefined;
+
+        if (include3d && component.model3d) {
+          await ensureDir(models3dDir);
+          const model = await easyedaCommunityClient.get3DModel(component.model3d.uuid, 'step');
+          if (model) {
+            const modelFilename = `${symbolName}.step`;
+            modelPath = join(models3dDir, modelFilename);
+            await writeBinary(modelPath, model);
+            // Use relative path for project-local libraries
+            modelRelativePath = `\${KIPRJMOD}/libraries/3dmodels/EasyEDA.3dshapes/${modelFilename}`;
+          }
+        }
+
+        // Generate custom footprint with 3D model
+        const footprint = footprintConverter.convert(component, {
+          libraryName: EASYEDA_LIBRARY_NAME,
+          include3DModel: !!modelRelativePath,
+          modelPath: modelRelativePath,
+        });
         footprintPath = join(footprintDir, `${symbolName}.kicad_mod`);
         footprintRef = `${EASYEDA_LIBRARY_NAME}:${symbolName}`;
         await writeText(footprintPath, footprint);
@@ -338,8 +459,30 @@ export function createLibraryService(): LibraryService {
         await ensureDir(paths.symbolsDir);
         await ensureDir(paths.footprintDir);
 
+        // Pre-compute symbol name for 3D model path
+        symbolName = symbolConverter.getSymbolName(component);
+
+        // Download 3D model first if requested (needed for footprint generation)
+        const include3d = options.include3d ?? false;
+        let modelRelativePath: string | undefined;
+
+        if (include3d && component.model3d) {
+          await ensureDir(models3dDir);
+          const model = await easyedaClient.get3DModel(component.model3d.uuid, 'step');
+          if (model) {
+            const modelFilename = `${symbolName}.step`;
+            modelPath = join(models3dDir, modelFilename);
+            await writeBinary(modelPath, model);
+            // Use KiCad variable for portable path
+            modelRelativePath = `\${KICAD9_3RD_PARTY}/${LIBRARY_NAMESPACE}/3dmodels/${MODELS_3D_NAME}/${modelFilename}`;
+          }
+        }
+
         // Determine footprint (may use KiCad standard)
-        const footprintResult = footprintConverter.getFootprint(component);
+        const footprintResult = footprintConverter.getFootprint(component, {
+          include3DModel: !!modelRelativePath,
+          modelPath: modelRelativePath,
+        });
 
         if (footprintResult.type === 'reference') {
           footprintRef = footprintResult.reference!;
@@ -350,7 +493,6 @@ export function createLibraryService(): LibraryService {
         }
 
         component.info.package = footprintRef;
-        symbolName = symbolConverter.getSymbolName(component);
         symbolRef = getSymbolReference(category as LibraryCategory, symbolName);
 
         // Update lib tables (project-local only)
@@ -360,16 +502,25 @@ export function createLibraryService(): LibraryService {
         }
       }
 
-      // Handle symbol library (append or create)
+      // Handle symbol library (append, replace, or create)
       let symbolContent: string;
-      let symbolAction: 'created' | 'appended' | 'exists';
+      let symbolAction: 'created' | 'appended' | 'exists' | 'replaced';
 
       if (existsSync(symbolFile)) {
         const existingContent = await readFile(symbolFile, 'utf-8');
 
         if (symbolConverter.symbolExistsInLibrary(existingContent, component.info.name)) {
-          symbolAction = 'exists';
-          symbolContent = existingContent;
+          if (options.force) {
+            // Force reinstall - replace existing symbol
+            symbolContent = symbolConverter.replaceInLibrary(existingContent, component, {
+              libraryName: isCommunityComponent ? EASYEDA_LIBRARY_NAME : undefined,
+              symbolName: isCommunityComponent ? symbolName : undefined,
+            });
+            symbolAction = 'replaced';
+          } else {
+            symbolAction = 'exists';
+            symbolContent = existingContent;
+          }
         } else {
           symbolContent = symbolConverter.appendToLibrary(existingContent, component, {
             libraryName: isCommunityComponent ? EASYEDA_LIBRARY_NAME : undefined,
@@ -387,21 +538,6 @@ export function createLibraryService(): LibraryService {
 
       if (symbolAction !== 'exists') {
         await writeText(symbolFile, symbolContent);
-      }
-
-      // Download 3D model if requested
-      const include3d = options.include3d ?? isCommunityComponent;
-      let modelPath: string | undefined;
-
-      if (include3d && component.model3d) {
-        await ensureDir(models3dDir);
-        const model = isCommunityComponent
-          ? await easyedaCommunityClient.get3DModel(component.model3d.uuid, 'step')
-          : await easyedaClient.get3DModel(component.model3d.uuid, 'step');
-        if (model) {
-          modelPath = join(models3dDir, `${symbolName}.step`);
-          await writeBinary(modelPath, model);
-        }
       }
 
       // Build validation data
@@ -468,9 +604,34 @@ export function createLibraryService(): LibraryService {
       };
     },
 
-    async listInstalled(_options: ListOptions = {}): Promise<InstalledComponent[]> {
-      // TODO: Implement by parsing symbol libraries
-      return [];
+    async listInstalled(options: ListOptions = {}): Promise<InstalledComponent[]> {
+      const paths = options.projectPath
+        ? getProjectLibraryPaths(options.projectPath)
+        : getGlobalLibraryPaths();
+
+      const allComponents: InstalledComponent[] = [];
+      const categories = getAllCategories();
+
+      for (const category of categories) {
+        // Filter by category if specified
+        if (options.category && options.category !== category) continue;
+
+        const libraryFilename = getLibraryFilename(category);
+        const libraryPath = join(paths.symbolsDir, libraryFilename);
+        const libraryName = `JLC-MCP-${category}`;
+
+        if (existsSync(libraryPath)) {
+          const components = await parseSymbolLibrary(
+            libraryPath,
+            libraryName,
+            category,
+            paths.models3dFullDir
+          );
+          allComponents.push(...components);
+        }
+      }
+
+      return allComponents;
     },
 
     async update(_options: UpdateOptions = {}): Promise<UpdateResult> {
@@ -479,8 +640,57 @@ export function createLibraryService(): LibraryService {
     },
 
     async ensureGlobalTables(): Promise<void> {
-      // This calls ensureGlobalLibraryTables from global-lib-table.ts
-      // which is already done at MCP server startup
+      const { ensureGlobalLibraryTables } = await import('../converter/global-lib-table.js');
+      await ensureGlobalLibraryTables();
+    },
+
+    async getStatus(): Promise<LibraryStatus> {
+      const version = detectKicadVersion();
+      const paths = getGlobalLibraryPaths();
+      const configDir = getKicadConfigDir(version);
+
+      const symLibTablePath = join(configDir, 'sym-lib-table');
+      const fpLibTablePath = join(configDir, 'fp-lib-table');
+
+      // Check if library directories exist with actual content
+      let installed = false;
+      if (existsSync(paths.symbolsDir)) {
+        try {
+          const files = await readdir(paths.symbolsDir);
+          installed = files.some(f => f.endsWith('.kicad_sym'));
+        } catch {
+          installed = false;
+        }
+      }
+
+      // Check if libraries are linked in KiCad tables
+      let linked = false;
+      if (existsSync(symLibTablePath)) {
+        try {
+          const content = await readFile(symLibTablePath, 'utf-8');
+          linked = content.includes('JLC-MCP');
+        } catch {
+          linked = false;
+        }
+      }
+
+      // Count installed components
+      const components = await this.listInstalled({});
+      const componentCount = components.length;
+
+      return {
+        installed,
+        linked,
+        version,
+        componentCount,
+        paths: {
+          symbolsDir: paths.symbolsDir,
+          footprintsDir: paths.footprintsDir,
+          models3dDir: paths.models3dFullDir,
+          symLibTable: symLibTablePath,
+          fpLibTable: fpLibTablePath,
+        },
+      };
     },
   };
 }

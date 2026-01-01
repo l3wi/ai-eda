@@ -28,6 +28,7 @@ import type {
   EasyEDARect,
   EasyEDAVia,
   EasyEDAText,
+  EasyEDASolidRegion,
   ParsedFootprintData,
 } from '../types/easyeda.js';
 
@@ -418,6 +419,27 @@ export function parseText(data: string): EasyEDAText | null {
   }
 }
 
+/**
+ * Parse SOLIDREGION element - filled polygon region
+ * Format: SOLIDREGION~layerId~~path~fillType~id~~~~
+ */
+export function parseSolidRegion(data: string): EasyEDASolidRegion | null {
+  try {
+    const f = data.split('~');
+    const path = f[3] || '';
+    // Skip empty paths
+    if (!path || path.length < 3) return null;
+    return {
+      layerId: safeParseInt(f[1], 1),
+      path,
+      fillType: f[4] || 'solid',
+      id: f[5] || '',
+    };
+  } catch {
+    return null;
+  }
+}
+
 // =============================================================================
 // High-Level Dispatch Functions
 // =============================================================================
@@ -513,6 +535,7 @@ export function parseFootprintShapes(shapes: string[]): ParsedFootprintData {
   const rects: EasyEDARect[] = [];
   const texts: EasyEDAText[] = [];
   const vias: EasyEDAVia[] = [];
+  const solidRegions: EasyEDASolidRegion[] = [];
   let model3d: { name: string; uuid: string } | undefined;
 
   for (const line of shapes) {
@@ -577,9 +600,11 @@ export function parseFootprintShapes(shapes: string[]): ParsedFootprintData {
         }
         break;
       }
-      case 'SOLIDREGION':
-        // Skip - complex polygon fills
+      case 'SOLIDREGION': {
+        const solidRegion = parseSolidRegion(line);
+        if (solidRegion) solidRegions.push(solidRegion);
         break;
+      }
     }
   }
 
@@ -597,6 +622,7 @@ export function parseFootprintShapes(shapes: string[]): ParsedFootprintData {
     rects,
     texts,
     vias,
+    solidRegions,
     model3d,
   };
 }
