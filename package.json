@@ -10,7 +10,10 @@
     "lint": "bun run --filter '*' lint",
     "typecheck": "bun run --filter '*' typecheck",
     "clean": "bun run --filter '*' clean",
-    "publish-all": "bun run build && changeset publish"
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "bun run build && changeset publish",
+    "release:dry": "bun run build && changeset publish --dry-run"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",

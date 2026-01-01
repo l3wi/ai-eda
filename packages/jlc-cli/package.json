@@ -1,8 +1,17 @@
 {
   "name": "jlc-cli",
   "version": "0.1.0",
+  "private": false,
   "type": "module",
   "description": "CLI for JLC/EasyEDA component sourcing and KiCad library management",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/l3wi/ai-eda.git",
+    "directory": "packages/jlc-cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "jlc": "./dist/index.js"
   },

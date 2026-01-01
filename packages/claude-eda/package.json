@@ -1,8 +1,17 @@
 {
   "name": "claude-eda",
   "version": "0.1.0",
+  "private": false,
   "type": "module",
   "description": "CLI for AI-assisted EDA project initialization and management with KiCad",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/l3wi/ai-eda.git",
+    "directory": "packages/claude-eda"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "claude-eda": "./dist/index.js"
   },

@@ -1,8 +1,17 @@
 {
   "name": "jlc-core",
   "version": "0.1.0",
+  "private": false,
   "type": "module",
   "description": "Core library for JLC/EasyEDA component sourcing and KiCad conversion",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/l3wi/ai-eda.git",
+    "directory": "packages/jlc-core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

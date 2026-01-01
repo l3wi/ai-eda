@@ -1,8 +1,17 @@
 {
   "name": "jlc-mcp",
   "version": "0.1.0",
+  "private": false,
   "type": "module",
   "description": "MCP server for JLC/EasyEDA component sourcing, library fetching, and conversion to KiCad format",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/l3wi/ai-eda.git",
+    "directory": "packages/jlc-mcp"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "jlc-mcp": "./dist/index.js"
   },
