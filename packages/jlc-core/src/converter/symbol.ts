@@ -209,6 +209,10 @@ export class SymbolConverter {
       const arcOutput = this.convertArc(arc, origin);
       if (arcOutput) output += arcOutput;
     }
+    for (const path of symbol.paths) {
+      const pathOutput = this.convertPath(path, origin);
+      if (pathOutput) output += pathOutput;
+    }
 
     output += `\t\t)\n`;
 
@@ -411,6 +415,79 @@ export class SymbolConverter {
 \t\t\t\t)
 \t\t\t)
 `;
+  }
+
+  /**
+   * Convert EasyEDA SVG path to KiCad polyline
+   * Supports M (move), L (line), Z (close) commands
+   */
+  private convertPath(path: EasyEDASymbolPath, origin: { x: number; y: number }): string | null {
+    const points = this.parseSvgPath(path.path, origin);
+    if (points.length < 2) return null;
+
+    const strokeWidth = this.convertStrokeWidth(path.strokeWidth);
+    const hasFill = path.fillColor && path.fillColor !== 'none' && path.fillColor !== '';
+
+    let output = `\t\t\t(polyline\n`;
+    output += `\t\t\t\t(pts\n`;
+
+    for (const pt of points) {
+      output += `\t\t\t\t\t(xy ${pt.x} ${pt.y})\n`;
+    }
+
+    output += `\t\t\t\t)\n`;
+    output += `\t\t\t\t(stroke\n`;
+    output += `\t\t\t\t\t(width ${strokeWidth})\n`;
+    output += `\t\t\t\t\t(type default)\n`;
+    output += `\t\t\t\t)\n`;
+    output += `\t\t\t\t(fill\n`;
+    output += `\t\t\t\t\t(type ${hasFill ? 'outline' : 'none'})\n`;
+    output += `\t\t\t\t)\n`;
+    output += `\t\t\t)\n`;
+
+    return output;
+  }
+
+  /**
+   * Parse SVG path string (M/L/Z commands) to array of points
+   * Format: "M x1,y1 L x2,y2 L x3,y3 Z" or "M x1 y1 L x2 y2 ..."
+   */
+  private parseSvgPath(pathStr: string, origin: { x: number; y: number }): Array<{ x: number; y: number }> {
+    const points: Array<{ x: number; y: number }> = [];
+    let firstPoint: { x: number; y: number } | null = null;
+
+    // Match M and L commands with coordinates (supports both comma and space separators)
+    const commandRegex = /([MLZ])\s*([\d.-]+)?[,\s]*([\d.-]+)?/gi;
+    let match;
+
+    while ((match = commandRegex.exec(pathStr)) !== null) {
+      const cmd = match[1].toUpperCase();
+
+      if (cmd === 'M' || cmd === 'L') {
+        const x = parseFloat(match[2]);
+        const y = parseFloat(match[3]);
+
+        if (!isNaN(x) && !isNaN(y)) {
+          const point = {
+            x: this.convertX(x, origin.x),
+            y: this.convertY(y, origin.y),
+          };
+          points.push(point);
+
+          if (cmd === 'M' && !firstPoint) {
+            firstPoint = point;
+          }
+        }
+      } else if (cmd === 'Z' && firstPoint) {
+        // Close path - add first point if not already there
+        const lastPoint = points[points.length - 1];
+        if (lastPoint && (lastPoint.x !== firstPoint.x || lastPoint.y !== firstPoint.y)) {
+          points.push({ ...firstPoint });
+        }
+      }
+    }
+
+    return points;
   }
 
   /**
