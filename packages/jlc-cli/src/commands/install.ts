@@ -14,11 +14,47 @@ const libraryService = createLibraryService();
 interface InstallOptions {
   projectPath?: string;
   include3d?: boolean;
-  interactive?: boolean;
+  force?: boolean;
 }
 
 export async function installCommand(id: string | undefined, options: InstallOptions): Promise<void> {
-  // If ID provided, fetch component and launch TUI for install
+  // If ID provided with --force, do direct install (non-interactive)
+  if (id && options.force) {
+    const spinner = p.spinner();
+    spinner.start(`Installing component ${id}...`);
+
+    try {
+      // Ensure libraries are set up
+      await libraryService.ensureGlobalTables();
+
+      // Install the component
+      const result = await libraryService.install(id, {
+        projectPath: options.projectPath,
+        include3d: options.include3d,
+        force: true,
+      });
+
+      spinner.stop(chalk.green('✓ Component installed'));
+
+      // Display result
+      console.log();
+      console.log(chalk.cyan('Symbol:    '), result.symbolRef);
+      console.log(chalk.cyan('Footprint: '), result.footprintRef);
+      console.log(chalk.cyan('Action:    '), result.symbolAction);
+      if (result.files.model3d) {
+        console.log(chalk.cyan('3D Model:  '), result.files.model3d);
+      }
+      console.log();
+      console.log(chalk.dim(`Library: ${result.files.symbolLibrary}`));
+    } catch (error) {
+      spinner.stop(chalk.red('✗ Installation failed'));
+      p.log.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  // If ID provided (without --force), fetch component and launch TUI for install
   if (id) {
     const spinner = p.spinner();
     spinner.start(`Fetching component ${id}...`);

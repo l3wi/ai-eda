@@ -1,6 +1,6 @@
-import type { ComponentSearchResult, ComponentDetails, InstallResult, InstalledComponent } from 'jlc-core';
+import type { ComponentSearchResult, ComponentDetails, InstallResult, InstalledComponent, LibraryStatus } from 'jlc-core';
 
-export type ScreenName = 'search' | 'info' | 'install' | 'list' | 'installed';
+export type ScreenName = 'search' | 'info' | 'install' | 'library' | 'library-setup' | 'installed';
 
 // Common component type that works across screens
 export type ComponentInfo = ComponentSearchResult | ComponentDetails;
@@ -20,9 +20,14 @@ export interface InstallParams {
   component: ComponentInfo;
 }
 
-export interface ListParams {
-  category?: string;
+export interface LibraryParams {
+  status?: LibraryStatus;
   installed?: InstalledComponent[];
+}
+
+export interface LibrarySetupParams {
+  componentId: string;
+  component: ComponentInfo;
 }
 
 export interface InstalledParams {
@@ -36,7 +41,8 @@ export interface ScreenParams {
   search: SearchParams;
   info: InfoParams;
   install: InstallParams;
-  list: ListParams;
+  library: LibraryParams;
+  'library-setup': LibrarySetupParams;
   installed: InstalledParams;
 }
 

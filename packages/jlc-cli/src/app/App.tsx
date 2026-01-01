@@ -6,7 +6,8 @@ import { SearchScreen } from './screens/SearchScreen.js';
 import { InfoScreen } from './screens/InfoScreen.js';
 import { InstallScreen } from './screens/InstallScreen.js';
 import { InstalledScreen } from './screens/InstalledScreen.js';
-import { ListScreen } from './screens/ListScreen.js';
+import { LibraryScreen } from './screens/LibraryScreen.js';
+import { LibrarySetupScreen } from './screens/LibrarySetupScreen.js';
 import type { ScreenName, ScreenParams } from './navigation/types.js';
 
 function ScreenRouter() {
@@ -21,8 +22,10 @@ function ScreenRouter() {
       return <InstallScreen />;
     case 'installed':
       return <InstalledScreen />;
-    case 'list':
-      return <ListScreen />;
+    case 'library':
+      return <LibraryScreen />;
+    case 'library-setup':
+      return <LibrarySetupScreen />;
     default:
       return null;
   }

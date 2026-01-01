@@ -9,7 +9,7 @@ import { Command } from 'commander';
 import { searchCommand } from './commands/search.js';
 import { infoCommand } from './commands/info.js';
 import { installCommand } from './commands/install.js';
-import { listCommand } from './commands/list.js';
+import { libraryCommand } from './commands/library.js';
 
 const program = new Command();
 
@@ -48,21 +48,21 @@ program
   .description('Install component to KiCad libraries')
   .option('-p, --project <path>', 'Install to project-local library')
   .option('--with-3d', 'Include 3D model')
+  .option('-f, --force', 'Force reinstall (regenerate symbol and footprint)')
   .action(async (id, options) => {
     await installCommand(id, {
       projectPath: options.project,
       include3d: options.with3d,
+      force: options.force,
     });
   });
 
 program
-  .command('list')
-  .description('List installed components')
-  .option('-c, --category <category>', 'Filter by category')
+  .command('library')
+  .description('View JLC-MCP library status and installed components')
   .option('--json', 'Output as JSON')
   .action(async (options) => {
-    await listCommand({
-      category: options.category,
+    await libraryCommand({
       json: options.json,
     });
   });
