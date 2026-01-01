@@ -5,97 +5,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Development Commands
 
 ```bash
-# Monorepo commands (from root)
-bun install          # Install all dependencies
-bun run build        # Build all packages
-bun run test         # Run tests across all packages
-bun run typecheck    # Type check all packages
-bun run lint         # Lint all packages
-
-# Package-specific development
-cd packages/jlc-mcp
+bun install          # Install dependencies
+bun run build        # Build CLI to ./dist
 bun run dev          # Watch mode
-bun run build        # Build to ./dist
-bun run test         # Run tests
-
-cd packages/claude-eda
-bun run dev          # Watch mode
-bun run build        # Build CLI
-```
-
-## MCP Server Testing
-
-Test MCP tools by sending JSON-RPC over stdin:
-
-```bash
-# List available tools
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node packages/jlc-mcp/dist/index.js
-
-# Call a tool
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"component_search","arguments":{"query":"STM32F103","limit":2}}}' | node packages/jlc-mcp/dist/index.js
-
-# Fetch a component
-echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"library_fetch","arguments":{"lcsc_id":"C5446"}}}' | node packages/jlc-mcp/dist/index.js
+bun run typecheck    # Type check
+bun run start        # Run CLI directly
 ```
 
 ## Architecture
 
-### Package Structure
+### Overview
 
-- **jlc-mcp**: MCP server for LCSC/JLCPCB component sourcing. Fetches components from EasyEDA API and converts to KiCad format.
-- **claude-eda**: CLI for project initialization. Scaffolds KiCad projects with MCP configuration and Claude commands/skills.
-
-### jlc-mcp Data Flow
-
-```
-LCSC ID (e.g., C2040)
-    → api/easyeda.ts (fetch from EasyEDA API)
-    → converter/symbol.ts (convert to KiCad S-expression)
-    → converter/category-router.ts (route to JLC-Resistors.kicad_sym, JLC-ICs.kicad_sym, etc.)
-    → converter/footprint-mapper.ts (map to KiCad built-in or generate custom footprint)
-    → converter/global-lib-table.ts (register in KiCad's sym-lib-table/fp-lib-table)
-```
+claude-eda is a CLI tool for AI-assisted EDA (Electronic Design Automation) project initialization and management with KiCad. It scaffolds new projects with MCP server configuration and Claude integration.
 
 ### Key Directories
 
-- `packages/jlc-mcp/src/tools/` - MCP tool definitions and handlers (library_fetch, component_search, library_fix, etc.)
-- `packages/jlc-mcp/src/converter/` - EasyEDA to KiCad conversion logic
-- `packages/jlc-mcp/src/api/` - EasyEDA/LCSC API clients
-- `packages/claude-eda/src/commands/` - CLI commands (init, doctor, config, update)
-- `templates/claude/` - EDA workflow commands, agents, and skills copied to new projects
+- `src/commands/` - CLI command handlers (init, doctor, config, update, kicad-*)
+- `src/utils/` - Utility functions for KiCad path detection, environment checks
+- `templates/` - Project templates copied to new projects
 
-### Library Organization
+### Commands
 
-Components are routed to category-specific symbol libraries:
-- `JLC-Resistors.kicad_sym`, `JLC-Capacitors.kicad_sym`, `JLC-ICs.kicad_sym`, etc.
-- Footprints use KiCad built-ins when possible (0603, SOIC-8, etc.), custom packages go to `JLC.pretty/`
-- Libraries are auto-registered in KiCad's global tables on server startup
+| Command | Description |
+|---------|-------------|
+| `init` | Create new EDA project with MCP configuration |
+| `doctor` | Check environment (KiCad, Python, MCP servers) |
+| `update` | Sync project templates and MCP config |
+| `config` | Manage project configuration |
+| `kicad-ipc` | Manage KiCad IPC API |
+| `kicad-mcp` | Install/manage KiCad PCB MCP server |
+| `kicad-sch-mcp` | Install/manage KiCad Schematic MCP server |
+| `kicad-python` | Install kicad-python library |
 
-### Tool Handler Pattern
+### Related Projects
 
-MCP tools follow a consistent pattern in `packages/jlc-mcp/src/tools/`:
-
-```typescript
-// Tool definition (exported for registration)
-export const myTool: Tool = {
-  name: 'my_tool',
-  description: '...',
-  inputSchema: { ... }
-};
-
-// Handler function
-export async function handleMyTool(args: unknown) {
-  const parsed = MyToolSchema.parse(args);
-  // ... implementation
-  return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-}
-```
-
-## Validation Data
-
-`library_fetch` returns `validation_data` with structural checks:
-- `pin_pad_count_match`: Symbol pins vs footprint pads
-- `has_power_pins`: Component has power_in/power_out pins
-- `has_ground_pins`: Component has GND/VSS pins
-
-Use `library_fix` to correct pin issues (swap, rename, add, remove pins).
+- **jlc-cli**: JLC/EasyEDA component sourcing tools (separate repository)
